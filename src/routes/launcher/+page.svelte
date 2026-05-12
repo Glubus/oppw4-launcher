@@ -111,11 +111,12 @@
   let statusDetails: HTMLDetailsElement;
   let latestRelease: ReleaseInfo | null = null;
   let needsPatcherUpdate = false;
-  let activePanel: "mods" | "settings" | "changelog" = "mods";
+  let activePanel: "mods" | "profiles" | "settings" | "changelog" = "mods";
   let updateSkins: Record<string, Skin> = {};
   let checkingUpdates = false;
   let updatingAll = false;
   let profileName = "";
+  let selectedProfile: ModProfile | null = null;
 
   $: hasGameFolder = Boolean(config.gameFolder);
   $: canLaunch = config.launchMode === "steam" || Boolean(config.gameExecutablePath);
@@ -129,6 +130,9 @@
     modSort
   );
   $: updateCount = installedMods.filter((mod) => Boolean(updateSkins[mod.path])).length;
+  $: selectedProfileMods = selectedProfile
+    ? installedMods.filter((mod) => selectedProfile?.enabledModKeys.includes(mod.modKey))
+    : [];
 
   onMount(async () => {
     isDesktop = "__TAURI_INTERNALS__" in window;
@@ -360,6 +364,7 @@
 
   async function deleteProfile(profile: ModProfile) {
     config = { ...config, modProfiles: config.modProfiles.filter((item) => item.id !== profile.id) };
+    if (selectedProfile?.id === profile.id) selectedProfile = null;
     await saveAndRefresh("Profile deleted.");
   }
 
@@ -509,6 +514,14 @@
     return profile.enabledModKeys.includes(mod.modKey);
   }
 
+  function openProfile(profile: ModProfile) {
+    selectedProfile = profile;
+  }
+
+  function closeProfile() {
+    selectedProfile = null;
+  }
+
   function noop() {}
 </script>
 
@@ -549,8 +562,9 @@
     {/if}
 
     <Card class="p-3">
-      <div class="grid grid-cols-3 overflow-hidden rounded-lg border border-white/10 bg-background/45">
+      <div class="grid grid-cols-4 overflow-hidden rounded-lg border border-white/10 bg-background/45">
         <button class="h-11 font-black {activePanel === 'mods' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => (activePanel = "mods")}>Mods</button>
+        <button class="h-11 font-black {activePanel === 'profiles' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => (activePanel = "profiles")}>Profiles</button>
         <button class="h-11 font-black {activePanel === 'settings' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => (activePanel = "settings")}>Settings</button>
         <button class="h-11 font-black {activePanel === 'changelog' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => (activePanel = "changelog")}>Changelog</button>
       </div>
@@ -601,34 +615,6 @@
             <SortCombobox bind:value={modSort} onChange={noop} />
 
             <Button variant="outline" type="button" on:click={resetInstalledFilters}>Reset</Button>
-          </section>
-
-          <section class="mt-4 grid gap-3 rounded-lg border border-white/10 bg-background/45 p-4">
-            <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <h3 class="font-black">Profiles</h3>
-                <p class="mt-1 text-sm text-muted-foreground">Create a preset, add mods from their cards, then apply it before launching.</p>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <Input class="w-52" bind:value={profileName} placeholder="Profile name" />
-                <Button variant="outline" disabled={!profileName.trim() || busy} on:click={createProfile}>Create</Button>
-                <Button disabled={!profileName.trim() || !installedMods.length || busy} on:click={saveCurrentProfile}>Save current setup</Button>
-              </div>
-            </div>
-            {#if config.modProfiles.length}
-              <div class="flex flex-wrap gap-2">
-                {#each config.modProfiles as profile}
-                  <div class="flex items-center gap-2 rounded-md border border-white/10 bg-card/70 px-2.5 py-2">
-                    <div class="pr-1">
-                      <p class="text-sm font-black leading-tight">{profile.name}</p>
-                      <p class="text-[0.7rem] font-bold text-muted-foreground">{profileModCount(profile)}/{profile.enabledModKeys.length} available</p>
-                    </div>
-                    <Button size="sm" disabled={busy} on:click={() => applyProfile(profile)}>Apply</Button>
-                    <Button size="sm" variant="outline" disabled={busy} on:click={() => deleteProfile(profile)}>Delete</Button>
-                  </div>
-                {/each}
-              </div>
-            {/if}
           </section>
 
           {#if !hasGameFolder}
@@ -704,6 +690,49 @@
             </section>
           {:else}
             <p class="mt-5 rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">{installedMods.length ? "No installed mods match this search." : "No installed mods found. Create a mods/ folder next to the game executable and add mod folders or zip files."}</p>
+          {/if}
+        </div>
+      {:else if activePanel === "profiles"}
+        <div class="grid gap-5 p-2 pt-5">
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 class="text-xl font-black">Profiles</h2>
+              <p class="mt-2 text-sm leading-6 text-muted-foreground">Build presets for enabled mods, then switch setups before launching the game.</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <Input class="w-56" bind:value={profileName} placeholder="Profile name" />
+              <Button variant="outline" disabled={!profileName.trim() || busy} on:click={createProfile}>Create empty</Button>
+              <Button disabled={!profileName.trim() || !installedMods.length || busy} on:click={saveCurrentProfile}>Save current setup</Button>
+            </div>
+          </div>
+
+          {#if config.modProfiles.length}
+            <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {#each config.modProfiles as profile}
+                <article class="grid gap-4 rounded-lg border border-white/10 bg-background/45 p-4">
+                  <button class="grid gap-3 rounded-md text-left transition hover:bg-white/7 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" type="button" on:click={() => openProfile(profile)}>
+                    <div class="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 class="text-lg font-black">{profile.name}</h3>
+                        <p class="mt-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">{profileModCount(profile)}/{profile.enabledModKeys.length} mods available</p>
+                      </div>
+                      <span class="rounded-full border border-white/15 bg-white/8 px-2.5 py-1 text-xs font-black text-muted-foreground">Preset</span>
+                    </div>
+
+                    <div class="rounded-md border border-white/10 bg-card/55 p-3">
+                      <p class="text-sm font-bold text-muted-foreground">Click to view linked mods.</p>
+                    </div>
+                  </button>
+
+                  <div class="grid grid-cols-2 gap-2">
+                    <Button disabled={busy} on:click={() => applyProfile(profile)}>Apply</Button>
+                    <Button variant="outline" disabled={busy} on:click={() => deleteProfile(profile)}>Delete</Button>
+                  </div>
+                </article>
+              {/each}
+            </section>
+          {:else}
+            <p class="rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">No profiles yet. Create one here, then add mods from the Mods tab.</p>
           {/if}
         </div>
       {:else if activePanel === "settings"}
@@ -784,5 +813,76 @@
         </div>
       {/if}
     </Card>
+  {/if}
+
+  {#if selectedProfile}
+    <div class="fixed inset-0 z-50 grid place-items-center p-4">
+      <button class="absolute inset-0 bg-black/70 backdrop-blur-sm" type="button" aria-label="Close profile" on:click={closeProfile}></button>
+      <div class="relative max-h-[86vh] w-full max-w-6xl overflow-hidden rounded-lg border border-white/12 bg-background shadow-2xl" role="dialog" aria-modal="true" aria-label={`${selectedProfile.name} profile`}>
+        <div class="flex flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-xs font-black uppercase tracking-[0.18em] text-primary">Profile</p>
+            <h2 class="text-2xl font-black">{selectedProfile.name}</h2>
+            <p class="mt-1 text-sm text-muted-foreground">{selectedProfileMods.length}/{selectedProfile.enabledModKeys.length} linked mods available locally.</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <Button disabled={busy} on:click={() => applyProfile(selectedProfile!)}>Apply</Button>
+            <Button variant="outline" on:click={closeProfile}>Close</Button>
+          </div>
+        </div>
+
+        <div class="max-h-[calc(86vh-110px)] overflow-auto p-4">
+          {#if selectedProfileMods.length}
+            <section class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {#each selectedProfileMods as mod}
+                <article class="group overflow-hidden rounded-lg border border-white/10 bg-card/92 shadow-[0_18px_55px_rgba(0,0,0,0.28)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:border-white/30 {!mod.enabled ? 'grayscale opacity-60' : ''}">
+                  <div class="relative aspect-[16/11] overflow-hidden bg-muted">
+                    {#if mod.coverDataUrl}
+                      <img class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.035] {!mod.enabled ? 'brightness-75' : ''}" src={mod.coverDataUrl} alt={mod.name} />
+                    {:else}
+                      <div class="absolute inset-0 bg-[linear-gradient(135deg,hsl(var(--primary)/.22),hsl(var(--accent)/.18))]"></div>
+                      <div class="absolute left-5 top-5 rounded-md border border-white/30 bg-white/12 px-4 py-3 text-4xl font-black text-white shadow-xl backdrop-blur">
+                        {modInitials(mod.name)}
+                      </div>
+                    {/if}
+                    <div class="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background/88 to-transparent"></div>
+                    <div class="absolute left-3 top-3 z-20 flex flex-wrap gap-2">
+                      <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">Profile</span>
+                      <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">{mod.enabled ? "Enabled" : "Disabled"}</span>
+                      {#if updateSkins[mod.path]}
+                        <span class="rounded-full border border-amber-300/50 bg-amber-400/20 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-amber-100 backdrop-blur">To update</span>
+                      {/if}
+                    </div>
+                  </div>
+
+                  <div class="grid gap-4 p-4">
+                    <div class="min-w-0">
+                      <p class="truncate text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">{mod.characterName || "Local mod"} / {mod.modType || mod.kind}</p>
+                      <h3 class="line-clamp-2 text-2xl font-black leading-tight text-foreground">{mod.name}</h3>
+                      {#if mod.version}
+                        <p class="mt-1 text-xs font-bold text-primary">v{mod.version}</p>
+                      {/if}
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                      {#if modPageHref(mod)}
+                        <Button variant="outline" href={modPageHref(mod)!}>View page</Button>
+                      {:else}
+                        <Button variant="outline" on:click={load}>Refresh</Button>
+                      {/if}
+                      <Button variant={mod.enabled ? "destructive" : "default"} disabled={busy} on:click={() => toggleInstalledMod(mod)}>
+                        {mod.enabled ? "Disable" : "Enable"}
+                      </Button>
+                    </div>
+                  </div>
+                </article>
+              {/each}
+            </section>
+          {:else}
+            <p class="rounded-lg border border-white/12 bg-card/70 p-4 text-sm text-muted-foreground">No linked mods from this profile are currently installed.</p>
+          {/if}
+        </div>
+      </div>
+    </div>
   {/if}
 </main>
