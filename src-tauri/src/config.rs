@@ -41,7 +41,7 @@ impl Default for LauncherConfig {
       launch_mode: LaunchMode::Steam,
       game_folder: None,
       game_executable_path: None,
-      modloader_repo: "Glubus/oppw4-modloader".to_string(),
+      modloader_repo: "Glubus/oppw4-patcher".to_string(),
       modloader_release: None,
       installed_files: Vec::new(),
       last_launch_at: None,

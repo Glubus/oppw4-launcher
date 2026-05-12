@@ -35,13 +35,20 @@
     config: LauncherConfig;
     detectedGame?: DetectedGame | null;
     modloaderStatus: string;
+    installedMods: InstalledMod[];
+  };
+
+  type InstalledMod = {
+    name: string;
+    kind: string;
+    path: string;
   };
 
   const defaultConfig: LauncherConfig = {
     launchMode: "steam",
     gameFolder: null,
     gameExecutablePath: null,
-    modloaderRepo: "Glubus/oppw4-modloader",
+    modloaderRepo: "Glubus/oppw4-patcher",
     modloaderRelease: null,
     installedFiles: [],
     lastLaunchAt: null
@@ -55,6 +62,7 @@
   let error = "";
   let message = "";
   let isDesktop = false;
+  let installedMods: InstalledMod[] = [];
 
   $: hasGameFolder = Boolean(config.gameFolder);
   $: canLaunch = config.launchMode === "steam" || Boolean(config.gameExecutablePath);
@@ -77,6 +85,7 @@
       config = state.config;
       detectedGame = state.detectedGame ?? null;
       modloaderStatus = state.modloaderStatus;
+      installedMods = state.installedMods ?? [];
     } catch (err) {
       error = errorMessage(err, "Could not load launcher state");
     } finally {
@@ -161,9 +170,9 @@
       await save();
       config = await invoke<LauncherConfig>("install_modloader");
       await load();
-      message = "Modloader installed.";
+      message = "Patcher installed.";
     } catch (err) {
-      error = errorMessage(err, "Could not install modloader");
+      error = errorMessage(err, "Could not install patcher");
     } finally {
       busy = false;
     }
@@ -176,9 +185,9 @@
     try {
       config = await invoke<LauncherConfig>("restore_modloader");
       await load();
-      message = "Modloader restored.";
+      message = "Patcher restored.";
     } catch (err) {
-      error = errorMessage(err, "Could not restore modloader");
+      error = errorMessage(err, "Could not restore patcher");
     } finally {
       busy = false;
     }
@@ -200,7 +209,7 @@
     <div>
       <p class="text-xs font-black uppercase tracking-[0.22em] text-primary/90">Desktop launcher</p>
       <h1 class="mt-1 text-4xl font-black tracking-tight">Launch, patch, restore</h1>
-      <p class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Detect OPPW4, install the dinput8 modloader, restore backups, and launch through Steam or a direct executable.</p>
+      <p class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Detect OPPW4, install the dinput8 patcher, restore backups, and launch through Steam or a direct executable.</p>
     </div>
     <Button size="lg" disabled={!isDesktop || loading || busy || !canLaunch} on:click={launchGame}>
       {busy ? "Working..." : "Launch game"}
@@ -232,54 +241,84 @@
         <p class="mt-2 break-words text-sm leading-6 text-muted-foreground">{config.gameFolder || "Detect Steam or select the folder manually."}</p>
       </Card>
       <Card class="p-5">
-        <p class="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">Modloader</p>
+        <p class="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">Patcher</p>
         <p class="mt-3 text-2xl font-black">{modloaderStatus}</p>
-        <p class="mt-2 break-words text-sm leading-6 text-muted-foreground">{config.modloaderRelease ? `Release ${config.modloaderRelease}` : "Install from a GitHub Release zip once the game folder is set."}</p>
+        <p class="mt-2 break-words text-sm leading-6 text-muted-foreground">{config.modloaderRelease ? `Release ${config.modloaderRelease}` : "Install from the oppw4-patcher GitHub Release zip once the game folder is set."}</p>
       </Card>
     </section>
 
     <section class="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
-      <Card class="p-5">
-        <div class="mb-5">
-          <h2 class="text-xl font-black">Game detection</h2>
-          <p class="mt-2 text-sm leading-6 text-muted-foreground">Steam installs are detected automatically when possible. Non-Steam installs can use a direct executable path.</p>
-        </div>
+      <div class="grid gap-5">
+        <Card class="p-5">
+          <div class="mb-5">
+            <h2 class="text-xl font-black">Game detection</h2>
+            <p class="mt-2 text-sm leading-6 text-muted-foreground">Steam installs are detected automatically when possible. Non-Steam installs can use a direct executable path.</p>
+          </div>
 
-        <div class="grid gap-4">
-          {#if detectedGame}
-            <div class="flex flex-col gap-3 rounded-lg border border-primary/20 bg-primary/10 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p class="font-black">Steam install detected</p>
-                <p class="mt-1 break-words text-sm text-muted-foreground">{detectedGame.gameFolder}</p>
+          <div class="grid gap-4">
+            {#if detectedGame}
+              <div class="flex flex-col gap-3 rounded-lg border border-primary/20 bg-primary/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p class="font-black">Steam install detected</p>
+                  <p class="mt-1 break-words text-sm text-muted-foreground">{detectedGame.gameFolder}</p>
+                </div>
+                <Button variant="outline" on:click={useDetectedGame}>Use this install</Button>
               </div>
-              <Button variant="outline" on:click={useDetectedGame}>Use this install</Button>
+            {:else}
+              <div class="flex flex-col gap-3 rounded-lg border border-white/12 bg-background/45 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p class="font-black">No Steam install detected</p>
+                  <p class="mt-1 text-sm text-muted-foreground">Select the executable or game folder manually.</p>
+                </div>
+                <Button variant="outline" on:click={load}>Scan again</Button>
+              </div>
+            {/if}
+
+            <div class="grid grid-cols-2 overflow-hidden rounded-lg border border-white/10 bg-background/45">
+              <button class="h-11 font-black {config.launchMode === 'steam' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => setLaunchMode("steam")}>Steam</button>
+              <button class="h-11 font-black {config.launchMode === 'executable' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => setLaunchMode("executable")}>Executable</button>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <Button variant="outline" on:click={chooseGameFolder}>Select game folder</Button>
+              <Button variant="outline" on:click={chooseExecutable}>Select executable</Button>
+            </div>
+          </div>
+        </Card>
+
+        <Card class="p-5">
+          <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 class="text-xl font-black">Installed mods</h2>
+              <p class="mt-2 text-sm leading-6 text-muted-foreground">Scans the selected game folder at <span class="font-bold">mods/</span>. Folders and zip files are listed; <span class="font-bold">mods/_oppw4</span> is ignored.</p>
+            </div>
+            <Button variant="outline" size="sm" on:click={load}>Refresh</Button>
+          </div>
+
+          {#if !hasGameFolder}
+            <p class="rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">Select a game folder to scan installed mods.</p>
+          {:else if installedMods.length}
+            <div class="grid gap-2">
+              {#each installedMods as mod}
+                <div class="grid gap-1 rounded-md border border-white/10 bg-background/45 px-3 py-2">
+                  <div class="flex items-center justify-between gap-3">
+                    <p class="min-w-0 truncate text-sm font-black">{mod.name}</p>
+                    <span class="shrink-0 rounded-md border border-white/12 px-2 py-1 text-[11px] font-black uppercase text-muted-foreground">{mod.kind}</span>
+                  </div>
+                  <p class="break-words text-xs text-muted-foreground">{mod.path}</p>
+                </div>
+              {/each}
             </div>
           {:else}
-            <div class="flex flex-col gap-3 rounded-lg border border-white/12 bg-background/45 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p class="font-black">No Steam install detected</p>
-                <p class="mt-1 text-sm text-muted-foreground">Select the executable or game folder manually.</p>
-              </div>
-              <Button variant="outline" on:click={load}>Scan again</Button>
-            </div>
+            <p class="rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">No installed mods found in the selected game folder.</p>
           {/if}
-
-          <div class="grid grid-cols-2 overflow-hidden rounded-lg border border-white/10 bg-background/45">
-            <button class="h-11 font-black {config.launchMode === 'steam' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => setLaunchMode("steam")}>Steam</button>
-            <button class="h-11 font-black {config.launchMode === 'executable' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => setLaunchMode("executable")}>Executable</button>
-          </div>
-
-          <div class="flex flex-wrap gap-2">
-            <Button variant="outline" on:click={chooseGameFolder}>Select game folder</Button>
-            <Button variant="outline" on:click={chooseExecutable}>Select executable</Button>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
 
       <Card class="p-5">
         <div class="mb-5">
-          <h2 class="text-xl font-black">dinput8 modloader</h2>
-          <p class="mt-2 text-sm leading-6 text-muted-foreground">Downloads the latest release zip, backs up replaced files, then writes the modloader into the selected game folder.</p>
+          <h2 class="text-xl font-black">dinput8 patcher</h2>
+          <p class="mt-2 text-sm leading-6 text-muted-foreground">Downloads the latest oppw4-patcher release zip, backs up replaced files, then writes the patcher into the selected game folder.</p>
         </div>
 
         <div class="grid gap-4">
@@ -287,7 +326,7 @@
             GitHub release repository
             <Input bind:value={config.modloaderRepo} on:change={() => saveAndRefresh("Repository saved.")} placeholder="owner/repository" />
           </Label>
-          <Button disabled={busy || !hasGameFolder} on:click={installModloader}>{isInstalled ? "Update modloader" : "Install modloader"}</Button>
+          <Button disabled={busy || !hasGameFolder} on:click={installModloader}>{isInstalled ? "Update patcher" : "Install patcher"}</Button>
           <Button variant="destructive" disabled={busy || !isInstalled} on:click={restoreModloader}>Restore original files</Button>
         </div>
 

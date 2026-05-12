@@ -5,7 +5,7 @@ mod steam;
 use config::{load_config as read_config, save_config as write_config, LaunchMode, LauncherConfig, STEAM_APP_ID};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{path::PathBuf, process::Command};
+use std::{fs, path::PathBuf, process::Command};
 
 const API_BASE: &str = "https://oppw4.prism.am/api";
 
@@ -15,6 +15,15 @@ struct LauncherState {
   config: LauncherConfig,
   detected_game: Option<steam::DetectedGame>,
   modloader_status: String,
+  installed_mods: Vec<InstalledMod>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InstalledMod {
+  name: String,
+  kind: String,
+  path: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -38,7 +47,8 @@ fn get_launcher_state() -> Result<LauncherState, String> {
     }
   }
   let modloader_status = modloader_status(&config);
-  Ok(LauncherState { config, detected_game, modloader_status })
+  let installed_mods = installed_mods(&config);
+  Ok(LauncherState { config, detected_game, modloader_status, installed_mods })
 }
 
 #[tauri::command]
@@ -162,6 +172,41 @@ fn modloader_status(config: &LauncherConfig) -> String {
     return "Detected unmanaged dinput8.dll".to_string();
   }
   "Missing".to_string()
+}
+
+fn installed_mods(config: &LauncherConfig) -> Vec<InstalledMod> {
+  let Some(game_folder) = &config.game_folder else {
+    return Vec::new();
+  };
+  let mods_dir = PathBuf::from(game_folder).join("mods");
+  let Ok(entries) = fs::read_dir(mods_dir) else {
+    return Vec::new();
+  };
+
+  let mut mods = Vec::new();
+  for entry in entries.flatten() {
+    let path = entry.path();
+    let Some(name) = path.file_name().and_then(|value| value.to_str()).map(ToOwned::to_owned) else {
+      continue;
+    };
+    if name == "_oppw4" || name.starts_with('.') {
+      continue;
+    }
+    let kind = if path.is_dir() {
+      "folder"
+    } else if path.extension().and_then(|value| value.to_str()).is_some_and(|ext| ext.eq_ignore_ascii_case("zip")) {
+      "zip"
+    } else {
+      continue;
+    };
+    mods.push(InstalledMod {
+      name,
+      kind: kind.to_string(),
+      path: path.to_string_lossy().to_string(),
+    });
+  }
+  mods.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+  mods
 }
 
 fn now_label() -> String {

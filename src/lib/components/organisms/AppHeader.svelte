@@ -29,9 +29,8 @@
     </div>
 
     <nav class="hidden items-center gap-1 md:flex">
-      <Button href="/" variant="ghost" size="sm">Skins</Button>
       <Button href="/launcher" variant="ghost" size="sm">Launcher</Button>
-      <Button href="/modloader" variant="ghost" size="sm">Modloader</Button>
+      <Button href="/" variant="ghost" size="sm">Browse</Button>
       <Button href="/upload" variant="ghost" size="sm">Upload</Button>
       {#if canAccessAdmin}
         <Button href="/admin" variant="ghost" size="sm">Admin</Button>
@@ -43,9 +42,8 @@
 
     <div class="flex min-w-0 items-center justify-between gap-2 md:flex-1 md:justify-end">
       <nav class="flex min-w-0 items-center gap-1 overflow-x-auto md:hidden">
-        <Button href="/" variant="ghost" size="sm">Skins</Button>
         <Button href="/launcher" variant="ghost" size="sm">Launcher</Button>
-        <Button href="/modloader" variant="ghost" size="sm">Modloader</Button>
+        <Button href="/" variant="ghost" size="sm">Browse</Button>
         <Button href="/upload" variant="ghost" size="sm">Upload</Button>
         {#if current}
           <Button href="/settings" variant="ghost" size="sm">Settings</Button>

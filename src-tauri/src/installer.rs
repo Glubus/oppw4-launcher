@@ -76,11 +76,17 @@ pub fn restore(config: &mut LauncherConfig) -> Result<(), String> {
 
 fn fetch_latest_release(repo: &str) -> Result<GithubRelease, String> {
   let url = format!("https://api.github.com/repos/{repo}/releases/latest");
-  reqwest::blocking::Client::new()
+  let response = reqwest::blocking::Client::new()
     .get(url)
     .header("User-Agent", "oppw4-launcher")
     .send()
-    .map_err(|err| format!("Could not contact GitHub: {err}"))?
+    .map_err(|err| format!("Could not contact GitHub: {err}"))?;
+
+  if response.status() == reqwest::StatusCode::NOT_FOUND {
+    return Err(format!("{repo} has no published GitHub Release yet. Build or publish a release zip that contains dinput8.dll, then retry."));
+  }
+
+  response
     .error_for_status()
     .map_err(|err| format!("GitHub release request failed: {err}"))?
     .json()
@@ -168,4 +174,3 @@ mod tests {
     assert_eq!(safe_zip_path("loader/config.json").unwrap(), PathBuf::from("loader/config.json"));
   }
 }
-
