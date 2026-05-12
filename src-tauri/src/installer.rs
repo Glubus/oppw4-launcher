@@ -31,19 +31,26 @@ pub fn install_from_latest_release(config: &mut LauncherConfig) -> Result<(), St
 
   let release = fetch_latest_release(repo)?;
   let asset = release.assets.iter()
-    .find(|asset| asset.name.to_lowercase().ends_with(".zip"))
-    .ok_or_else(|| "Latest GitHub release does not contain a zip asset.".to_string())?;
+    .find(|asset| {
+      let name = asset.name.to_lowercase();
+      name.ends_with(".zip") || name.ends_with(".dll")
+    })
+    .ok_or_else(|| "Latest GitHub release does not contain a .zip or .dll asset.".to_string())?;
   let bytes = reqwest::blocking::Client::new()
     .get(&asset.browser_download_url)
     .header("User-Agent", "oppw4-launcher")
     .send()
-    .map_err(|err| format!("Could not download modloader asset: {err}"))?
+    .map_err(|err| format!("Could not download patcher asset: {err}"))?
     .error_for_status()
-    .map_err(|err| format!("Modloader download failed: {err}"))?
+    .map_err(|err| format!("Patcher download failed: {err}"))?
     .bytes()
-    .map_err(|err| format!("Could not read modloader download: {err}"))?;
+    .map_err(|err| format!("Could not read patcher download: {err}"))?;
 
-  let installed_files = install_zip(&bytes, &game_folder)?;
+  let installed_files = if asset.name.to_lowercase().ends_with(".dll") {
+    install_dll(&bytes, &game_folder)?
+  } else {
+    install_zip(&bytes, &game_folder)?
+  };
   config.modloader_release = Some(release.tag_name);
   config.installed_files = installed_files;
   Ok(())
@@ -75,7 +82,7 @@ pub fn restore(config: &mut LauncherConfig) -> Result<(), String> {
 }
 
 fn fetch_latest_release(repo: &str) -> Result<GithubRelease, String> {
-  let url = format!("https://api.github.com/repos/{repo}/releases/latest");
+  let url = format!("https://api.github.com/repos/{repo}/releases?per_page=10");
   let response = reqwest::blocking::Client::new()
     .get(url)
     .header("User-Agent", "oppw4-launcher")
@@ -83,14 +90,39 @@ fn fetch_latest_release(repo: &str) -> Result<GithubRelease, String> {
     .map_err(|err| format!("Could not contact GitHub: {err}"))?;
 
   if response.status() == reqwest::StatusCode::NOT_FOUND {
-    return Err(format!("{repo} has no published GitHub Release yet. Build or publish a release zip that contains dinput8.dll, then retry."));
+    return Err(format!("{repo} has no GitHub releases yet."));
   }
 
-  response
+  let releases = response
     .error_for_status()
     .map_err(|err| format!("GitHub release request failed: {err}"))?
-    .json()
-    .map_err(|err| format!("Could not parse GitHub release: {err}"))
+    .json::<Vec<GithubRelease>>()
+    .map_err(|err| format!("Could not parse GitHub releases: {err}"))?;
+
+  releases
+    .into_iter()
+    .find(|release| !release.assets.is_empty())
+    .ok_or_else(|| format!("{repo} has releases, but none of them has downloadable assets."))
+}
+
+fn install_dll(bytes: &[u8], game_folder: &Path) -> Result<Vec<InstalledFile>, String> {
+  let target = game_folder.join("dinput8.dll");
+  let backup_root = backup_dir()?.join(timestamp());
+  fs::create_dir_all(&backup_root).map_err(|err| format!("Could not create backup directory: {err}"))?;
+
+  let backup_path = if target.exists() {
+    let backup_path = backup_root.join("dinput8.dll");
+    fs::copy(&target, &backup_path).map_err(|err| format!("Could not backup {}: {err}", target.display()))?;
+    Some(backup_path.to_string_lossy().to_string())
+  } else {
+    None
+  };
+
+  fs::write(&target, bytes).map_err(|err| format!("Could not write {}: {err}", target.display()))?;
+  Ok(vec![InstalledFile {
+    relative_path: "dinput8.dll".to_string(),
+    backup_path,
+  }])
 }
 
 fn install_zip(bytes: &[u8], game_folder: &Path) -> Result<Vec<InstalledFile>, String> {
