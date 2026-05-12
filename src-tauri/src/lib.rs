@@ -15,6 +15,8 @@ struct LauncherState {
   config: LauncherConfig,
   detected_game: Option<steam::DetectedGame>,
   modloader_status: String,
+  latest_release: Option<installer::ReleaseInfo>,
+  needs_patcher_update: bool,
   installed_mods: Vec<InstalledMod>,
 }
 
@@ -48,7 +50,11 @@ fn get_launcher_state() -> Result<LauncherState, String> {
   }
   let modloader_status = modloader_status(&config);
   let installed_mods = installed_mods(&config);
-  Ok(LauncherState { config, detected_game, modloader_status, installed_mods })
+  let latest_release = installer::latest_release_info(&config.modloader_repo).ok().flatten();
+  let needs_patcher_update = latest_release
+    .as_ref()
+    .is_some_and(|release| config.modloader_release.as_deref() != Some(release.tag_name.as_str()));
+  Ok(LauncherState { config, detected_game, modloader_status, latest_release, needs_patcher_update, installed_mods })
 }
 
 #[tauri::command]

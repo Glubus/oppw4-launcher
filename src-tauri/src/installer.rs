@@ -1,14 +1,29 @@
 use crate::config::{backup_dir, InstalledFile, LauncherConfig};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{
   fs,
   io::{Cursor, Read},
   path::{Component, Path, PathBuf},
 };
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReleaseInfo {
+  pub tag_name: String,
+  pub name: Option<String>,
+  pub body: Option<String>,
+  pub html_url: String,
+  pub prerelease: bool,
+  pub asset_name: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 struct GithubRelease {
   tag_name: String,
+  name: Option<String>,
+  body: Option<String>,
+  html_url: String,
+  prerelease: bool,
   assets: Vec<GithubAsset>,
 }
 
@@ -79,6 +94,28 @@ pub fn restore(config: &mut LauncherConfig) -> Result<(), String> {
   config.installed_files.clear();
   config.modloader_release = None;
   Ok(())
+}
+
+pub fn latest_release_info(repo: &str) -> Result<Option<ReleaseInfo>, String> {
+  if repo.trim().is_empty() || !repo.contains('/') {
+    return Ok(None);
+  }
+  let release = fetch_latest_release(repo)?;
+  let asset_name = release.assets.iter()
+    .find(|asset| {
+      let name = asset.name.to_lowercase();
+      name.ends_with(".zip") || name.ends_with(".dll")
+    })
+    .map(|asset| asset.name.clone());
+
+  Ok(Some(ReleaseInfo {
+    tag_name: release.tag_name,
+    name: release.name,
+    body: release.body,
+    html_url: release.html_url,
+    prerelease: release.prerelease,
+    asset_name,
+  }))
 }
 
 fn fetch_latest_release(repo: &str) -> Result<GithubRelease, String> {
