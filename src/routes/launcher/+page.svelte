@@ -295,11 +295,26 @@
     }
   }
 
+  async function createProfile() {
+    const name = profileName.trim();
+    if (!name) return;
+    if (config.modProfiles.some((profile) => profile.name.toLowerCase() === name.toLowerCase())) {
+      error = "A profile with this name already exists.";
+      return;
+    }
+    config = {
+      ...config,
+      modProfiles: [...config.modProfiles, { id: `profile-${Date.now()}`, name, enabledModKeys: [] }]
+    };
+    profileName = "";
+    await saveAndRefresh("Profile created.");
+  }
+
   async function saveCurrentProfile() {
     const name = profileName.trim();
     if (!name) return;
-    const enabledModKeys = installedMods.filter((mod) => mod.enabled).map((mod) => mod.modKey);
     const existingIndex = config.modProfiles.findIndex((profile) => profile.name.toLowerCase() === name.toLowerCase());
+    const enabledModKeys = installedMods.filter((mod) => mod.enabled).map((mod) => mod.modKey);
     const nextProfile: ModProfile = {
       id: existingIndex >= 0 ? config.modProfiles[existingIndex].id : `profile-${Date.now()}`,
       name,
@@ -311,6 +326,20 @@
     config = { ...config, modProfiles };
     profileName = "";
     await saveAndRefresh("Profile saved.");
+  }
+
+  async function addModToProfile(profile: ModProfile, mod: InstalledMod) {
+    if (profile.enabledModKeys.includes(mod.modKey)) {
+      message = `${mod.name} is already in ${profile.name}.`;
+      return;
+    }
+    config = {
+      ...config,
+      modProfiles: config.modProfiles.map((item) => item.id === profile.id
+        ? { ...item, enabledModKeys: [...item.enabledModKeys, mod.modKey] }
+        : item)
+    };
+    await saveAndRefresh(`${mod.name} added to ${profile.name}.`);
   }
 
   async function applyProfile(profile: ModProfile) {
@@ -472,6 +501,14 @@
     if (statusDetails) statusDetails.open = false;
   }
 
+  function profileModCount(profile: ModProfile) {
+    return installedMods.filter((mod) => profile.enabledModKeys.includes(mod.modKey)).length;
+  }
+
+  function profileHasMod(profile: ModProfile, mod: InstalledMod) {
+    return profile.enabledModKeys.includes(mod.modKey);
+  }
+
   function noop() {}
 </script>
 
@@ -566,27 +603,28 @@
             <Button variant="outline" type="button" on:click={resetInstalledFilters}>Reset</Button>
           </section>
 
-          <section class="mt-4 grid gap-3 rounded-lg border border-white/10 bg-background/45 p-4 md:grid-cols-[1fr_auto]">
-            <div>
-              <h3 class="font-black">Mod profiles</h3>
-              <p class="mt-1 text-sm text-muted-foreground">Save the current enabled mods, then switch presets before launching the game.</p>
-            </div>
-            <div class="flex flex-wrap gap-2 md:justify-end">
-              <Input class="w-52" bind:value={profileName} placeholder="Profile name" />
-              <Button disabled={!profileName.trim() || !installedMods.length || busy} on:click={saveCurrentProfile}>Save profile</Button>
+          <section class="mt-4 grid gap-3 rounded-lg border border-white/10 bg-background/45 p-4">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h3 class="font-black">Profiles</h3>
+                <p class="mt-1 text-sm text-muted-foreground">Create a preset, add mods from their cards, then apply it before launching.</p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <Input class="w-52" bind:value={profileName} placeholder="Profile name" />
+                <Button variant="outline" disabled={!profileName.trim() || busy} on:click={createProfile}>Create</Button>
+                <Button disabled={!profileName.trim() || !installedMods.length || busy} on:click={saveCurrentProfile}>Save current setup</Button>
+              </div>
             </div>
             {#if config.modProfiles.length}
-              <div class="grid gap-2 md:col-span-2">
+              <div class="flex flex-wrap gap-2">
                 {#each config.modProfiles as profile}
-                  <div class="flex flex-col gap-2 rounded-md border border-white/10 bg-card/65 p-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p class="font-black">{profile.name}</p>
-                      <p class="text-xs font-bold text-muted-foreground">{profile.enabledModKeys.length} enabled mod{profile.enabledModKeys.length === 1 ? "" : "s"}</p>
+                  <div class="flex items-center gap-2 rounded-md border border-white/10 bg-card/70 px-2.5 py-2">
+                    <div class="pr-1">
+                      <p class="text-sm font-black leading-tight">{profile.name}</p>
+                      <p class="text-[0.7rem] font-bold text-muted-foreground">{profileModCount(profile)}/{profile.enabledModKeys.length} available</p>
                     </div>
-                    <div class="flex flex-wrap gap-2">
-                      <Button size="sm" disabled={busy} on:click={() => applyProfile(profile)}>Apply</Button>
-                      <Button size="sm" variant="outline" disabled={busy} on:click={() => deleteProfile(profile)}>Delete</Button>
-                    </div>
+                    <Button size="sm" disabled={busy} on:click={() => applyProfile(profile)}>Apply</Button>
+                    <Button size="sm" variant="outline" disabled={busy} on:click={() => deleteProfile(profile)}>Delete</Button>
                   </div>
                 {/each}
               </div>
@@ -631,11 +669,30 @@
                       {/if}
                     </div>
 
-                    <div class="grid grid-cols-2 gap-2">
+                    <div class="grid grid-cols-3 gap-2">
                       {#if modPageHref(mod)}
                         <Button variant="outline" href={modPageHref(mod)!}>View page</Button>
                       {:else}
                         <Button variant="outline" on:click={load}>Refresh</Button>
+                      {/if}
+                      {#if config.modProfiles.length}
+                        <details class="relative z-30">
+                          <summary class="flex h-10 w-full cursor-pointer list-none items-center justify-center rounded-md border border-white/12 bg-background/55 px-3 text-sm font-bold text-foreground shadow-sm transition-colors hover:bg-white/10">
+                            Add to profile
+                          </summary>
+                          <div class="absolute bottom-12 left-0 z-50 grid min-w-44 gap-1 rounded-lg border border-white/12 bg-popover/95 p-2 text-popover-foreground shadow-2xl backdrop-blur-md">
+                            {#each config.modProfiles as profile}
+                              <button class="flex h-8 w-full items-center justify-between gap-3 rounded-md px-2 text-left text-sm hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-55" type="button" disabled={profileHasMod(profile, mod) || busy} on:click={() => addModToProfile(profile, mod)}>
+                                <span class="truncate">{profile.name}</span>
+                                {#if profileHasMod(profile, mod)}
+                                  <span class="text-xs font-black text-primary">Added</span>
+                                {/if}
+                              </button>
+                            {/each}
+                          </div>
+                        </details>
+                      {:else}
+                        <Button variant="outline" disabled={true}>No profile</Button>
                       {/if}
                       <Button variant={mod.enabled ? "destructive" : "default"} disabled={busy} on:click={() => toggleInstalledMod(mod)}>
                         {mod.enabled ? "Disable" : "Enable"}
