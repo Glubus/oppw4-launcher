@@ -53,6 +53,7 @@
     name: string;
     kind: string;
     path: string;
+    enabled: boolean;
   };
 
   const defaultConfig: LauncherConfig = {
@@ -67,7 +68,6 @@
 
   let config = defaultConfig;
   let detectedGame: DetectedGame | null = null;
-  let modloaderStatus = "Unknown";
   let loading = true;
   let busy = false;
   let error = "";
@@ -83,7 +83,7 @@
   $: isInstalled = config.installedFiles.length > 0;
   $: currentRelease = config.modloaderRelease || "Not installed";
   $: latestReleaseLabel = latestRelease?.tagName || "Unknown";
-  $: patcherTone = !isInstalled ? "Missing" : needsPatcherUpdate ? "Update available" : "Up to date";
+  $: updateLabel = !isInstalled ? "Install patcher" : needsPatcherUpdate ? "Update patcher" : "";
 
   onMount(async () => {
     isDesktop = "__TAURI_INTERNALS__" in window;
@@ -101,7 +101,6 @@
       const state = await invoke<LauncherState>("get_launcher_state");
       config = state.config;
       detectedGame = state.detectedGame ?? null;
-      modloaderStatus = state.modloaderStatus;
       installedMods = state.installedMods ?? [];
       latestRelease = state.latestRelease ?? null;
       needsPatcherUpdate = state.needsPatcherUpdate;
@@ -212,14 +211,34 @@
     }
   }
 
+  async function toggleInstalledMod(mod: InstalledMod) {
+    busy = true;
+    error = "";
+    message = "";
+    try {
+      await invoke("set_mod_enabled", { input: { path: mod.path, enabled: !mod.enabled } });
+      await load();
+      message = `${mod.name} ${mod.enabled ? "disabled" : "enabled"}.`;
+    } catch (err) {
+      error = errorMessage(err, "Could not update mod state");
+    } finally {
+      busy = false;
+    }
+  }
+
   function errorMessage(err: unknown, fallback: string) {
     return err instanceof Error ? err.message : typeof err === "string" ? err : fallback;
   }
 
-  function releaseBodyPreview(value?: string | null) {
-    const clean = (value ?? "").trim();
-    if (!clean) return "No patch notes were provided for this release.";
-    return clean.length > 900 ? `${clean.slice(0, 900)}...` : clean;
+  function modInitials(name: string) {
+    return name
+      .replace(/\.(zip|disabled)$/i, "")
+      .split(/[\s._-]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase() || "MOD";
   }
 </script>
 
@@ -234,11 +253,16 @@
     <div>
       <p class="text-xs font-black uppercase tracking-[0.22em] text-primary/90">Desktop launcher</p>
       <h1 class="mt-1 text-4xl font-black tracking-tight">Launch and manage mods</h1>
-      <p class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">The launcher checks your game folder, keeps the patcher readable, lists installed mods, and starts OPPW4 without making you touch files manually.</p>
+      <p class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Installed patcher: <span class="font-bold text-foreground">{currentRelease}</span> · Latest: <span class="font-bold text-foreground">{latestReleaseLabel}</span></p>
     </div>
-    <Button size="lg" disabled={!isDesktop || loading || busy || !canLaunch} on:click={launchGame}>
-      {busy ? "Working..." : "Launch game"}
-    </Button>
+    <div class="flex flex-wrap gap-2">
+      {#if updateLabel}
+        <Button size="lg" disabled={!isDesktop || busy || !hasGameFolder || !latestRelease} on:click={installModloader}>{updateLabel}</Button>
+      {/if}
+      <Button size="lg" disabled={!isDesktop || loading || busy || !canLaunch} on:click={launchGame}>
+        {busy ? "Working..." : "Launch game"}
+      </Button>
+    </div>
   </section>
 
   {#if !isDesktop}
@@ -254,101 +278,64 @@
       <div class="rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-4 py-3 text-sm font-bold text-emerald-200 shadow-lg">{message}</div>
     {/if}
 
-    <section class="grid gap-5 md:grid-cols-3">
-      <Card class="p-5">
-        <p class="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">Patcher status</p>
-        <p class="mt-3 text-2xl font-black">{patcherTone}</p>
-        <p class="mt-2 text-sm leading-6 text-muted-foreground">Installed: <span class="font-bold text-foreground">{currentRelease}</span><br />Latest: <span class="font-bold text-foreground">{latestReleaseLabel}</span></p>
-      </Card>
-      <Card class="p-5">
-        <p class="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">Game folder</p>
-        <p class="mt-3 text-2xl font-black">{hasGameFolder ? "Configured" : "Missing"}</p>
-        <p class="mt-2 break-words text-sm leading-6 text-muted-foreground">{config.gameFolder || "Detect Steam or select the folder manually."}</p>
-      </Card>
-      <Card class="p-5">
-        <p class="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">Installed mods</p>
-        <p class="mt-3 text-2xl font-black">{installedMods.length}</p>
-        <p class="mt-2 text-sm leading-6 text-muted-foreground">Folders and zip files found in your selected <span class="font-bold">mods/</span> folder.</p>
-      </Card>
-    </section>
+    <Card class="p-3">
+      <div class="grid grid-cols-2 overflow-hidden rounded-lg border border-white/10 bg-background/45">
+        <button class="h-11 font-black {activePanel === 'mods' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => (activePanel = "mods")}>Mods</button>
+        <button class="h-11 font-black {activePanel === 'settings' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => (activePanel = "settings")}>Settings</button>
+      </div>
 
-    <section class="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_390px]">
-      <div class="grid gap-5">
-        <Card class="p-5">
-          <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      {#if activePanel === "mods"}
+        <div class="p-2 pt-5">
+          <div class="mb-5 flex items-center justify-between gap-3">
             <div>
-              <h2 class="text-xl font-black">Patcher</h2>
-              <p class="mt-2 text-sm leading-6 text-muted-foreground">The patcher is the dinput8 DLL loaded when the game starts. Keep it updated, then launch the game normally.</p>
+              <h2 class="text-xl font-black">Installed mods</h2>
+              <p class="mt-1 text-sm text-muted-foreground">{installedMods.length} found in your mods folder.</p>
             </div>
-            <div class="flex flex-wrap gap-2">
-              <Button disabled={busy || !hasGameFolder || !latestRelease} on:click={installModloader}>{isInstalled ? "Update patcher" : "Install patcher"}</Button>
-              <Button variant="outline" disabled={busy} on:click={load}>Check updates</Button>
-            </div>
+            <Button variant="outline" size="sm" on:click={load}>Refresh</Button>
           </div>
 
-          <div class="mt-5 grid gap-3 md:grid-cols-2">
-            <div class="rounded-lg border border-white/10 bg-background/45 p-4">
-              <p class="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Current</p>
-              <p class="mt-2 text-lg font-black">{currentRelease}</p>
-              <p class="mt-1 text-sm text-muted-foreground">{modloaderStatus}</p>
-            </div>
-            <div class="rounded-lg border border-white/10 bg-background/45 p-4">
-              <p class="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Latest GitHub</p>
-              <p class="mt-2 text-lg font-black">{latestReleaseLabel}</p>
-              <p class="mt-1 text-sm text-muted-foreground">{latestRelease?.assetName || "No compatible asset found"}</p>
-            </div>
-          </div>
-
-          <div class="mt-5 rounded-lg border border-white/10 bg-background/45 p-4">
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p class="text-sm font-black">Patch notes</p>
-                <p class="mt-1 text-xs text-muted-foreground">{latestRelease?.name || latestRelease?.tagName || "No release loaded"}</p>
-              </div>
-              {#if latestRelease?.htmlUrl}
-                <a class="text-sm font-bold text-primary hover:underline" href={latestRelease.htmlUrl} target="_blank" rel="noreferrer">Open release</a>
-              {/if}
-            </div>
-            <pre class="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-md bg-black/25 p-3 text-xs leading-5 text-muted-foreground">{releaseBodyPreview(latestRelease?.body)}</pre>
-          </div>
-        </Card>
-
-        <Card class="p-3">
-          <div class="grid grid-cols-2 overflow-hidden rounded-lg border border-white/10 bg-background/45">
-            <button class="h-11 font-black {activePanel === 'mods' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => (activePanel = "mods")}>Installed mods</button>
-            <button class="h-11 font-black {activePanel === 'settings' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => (activePanel = "settings")}>Settings</button>
-          </div>
-
-          {#if activePanel === "mods"}
-            <div class="p-2 pt-5">
-              <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h2 class="text-xl font-black">Installed mods</h2>
-                  <p class="mt-2 text-sm leading-6 text-muted-foreground">Everything here is already in <span class="font-bold">mods/</span>. Put folders or zip files there and refresh.</p>
-                </div>
-                <Button variant="outline" size="sm" on:click={load}>Refresh</Button>
-              </div>
-
-              {#if !hasGameFolder}
-                <p class="rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">Select a game folder in Settings to scan installed mods.</p>
-              {:else if installedMods.length}
-                <div class="grid gap-2">
-                  {#each installedMods as mod}
-                    <div class="grid gap-1 rounded-md border border-white/10 bg-background/45 px-3 py-2">
-                      <div class="flex items-center justify-between gap-3">
-                        <p class="min-w-0 truncate text-sm font-black">{mod.name}</p>
-                        <span class="shrink-0 rounded-md border border-white/12 px-2 py-1 text-[11px] font-black uppercase text-muted-foreground">{mod.kind}</span>
-                      </div>
-                      <p class="break-words text-xs text-muted-foreground">{mod.path}</p>
+          {#if !hasGameFolder}
+            <p class="rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">Select a game folder in Settings to scan installed mods.</p>
+          {:else if installedMods.length}
+            <section class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {#each installedMods as mod}
+                <article class="group overflow-hidden rounded-lg border border-white/10 bg-card/92 shadow-[0_18px_55px_rgba(0,0,0,0.34)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:border-white/30">
+                  <div class="relative aspect-[16/11] overflow-hidden bg-muted">
+                    <div class="absolute inset-0 bg-[linear-gradient(135deg,hsl(var(--primary)/.22),hsl(var(--accent)/.18))]"></div>
+                    <div class="absolute left-5 top-5 rounded-md border border-white/30 bg-white/12 px-4 py-3 text-4xl font-black text-white shadow-xl backdrop-blur">
+                      {modInitials(mod.name)}
                     </div>
-                  {/each}
-                </div>
-              {:else}
-                <p class="rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">No installed mods found. Create a <span class="font-bold">mods/</span> folder next to the game executable and add mod folders or zip files.</p>
-              {/if}
-            </div>
+                    <div class="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background/88 to-transparent"></div>
+                    <div class="absolute left-3 top-3 z-20 flex flex-wrap gap-2">
+                      <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">Installed</span>
+                      <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">{mod.kind}</span>
+                      <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">{mod.enabled ? "Enabled" : "Disabled"}</span>
+                    </div>
+                  </div>
+
+                  <div class="grid gap-4 p-4">
+                    <div class="min-w-0">
+                      <p class="truncate text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">Local mod / {mod.kind}</p>
+                      <h2 class="line-clamp-2 text-2xl font-black leading-tight text-foreground">{mod.name}</h2>
+                      <p class="mt-1 break-words text-xs font-bold text-muted-foreground">{mod.path}</p>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                      <Button variant="outline" on:click={load}>Refresh</Button>
+                      <Button variant={mod.enabled ? "destructive" : "default"} disabled={busy} on:click={() => toggleInstalledMod(mod)}>
+                        {mod.enabled ? "Disable" : "Enable"}
+                      </Button>
+                    </div>
+                  </div>
+                </article>
+              {/each}
+            </section>
           {:else}
-            <div class="grid gap-5 p-2 pt-5">
+            <p class="rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">No installed mods found. Create a <span class="font-bold">mods/</span> folder next to the game executable and add mod folders or zip files.</p>
+          {/if}
+        </div>
+      {:else}
+        <div class="grid gap-5 p-2 pt-5">
               <div>
                 <h2 class="text-xl font-black">Settings</h2>
                 <p class="mt-2 text-sm leading-6 text-muted-foreground">Only change this if the launcher picked the wrong game folder or if you are testing another patcher repo.</p>
@@ -380,34 +367,8 @@
                 Patcher GitHub repository
                 <Input bind:value={config.modloaderRepo} on:change={() => saveAndRefresh("Repository saved.")} placeholder="owner/repository" />
               </Label>
-            </div>
-          {/if}
-        </Card>
-      </div>
-
-      <Card class="p-5">
-        <div class="mb-5">
-          <h2 class="text-xl font-black">What this does</h2>
-          <p class="mt-2 text-sm leading-6 text-muted-foreground">For normal users: install or update the patcher, keep mods inside <span class="font-bold">mods/</span>, then launch the game.</p>
         </div>
-
-        <div class="grid gap-4">
-          <Button disabled={busy || !hasGameFolder || !latestRelease} on:click={installModloader}>{isInstalled ? "Update patcher" : "Install patcher"}</Button>
-          <Button variant="destructive" disabled={busy || !isInstalled} on:click={restoreModloader}>Restore original files</Button>
-          <Button variant="outline" disabled={!canLaunch || busy} on:click={launchGame}>Launch game</Button>
-        </div>
-
-        {#if config.installedFiles.length}
-          <div class="mt-5 border-t border-white/10 pt-4">
-            <p class="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">Installed files</p>
-            <div class="mt-3 grid gap-2">
-              {#each config.installedFiles as file}
-                <p class="break-words rounded-md bg-background/45 px-3 py-2 text-xs font-bold text-muted-foreground">{file.relativePath}</p>
-              {/each}
-            </div>
-          </div>
-        {/if}
-      </Card>
-    </section>
+      {/if}
+    </Card>
   {/if}
 </main>

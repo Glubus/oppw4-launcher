@@ -26,6 +26,14 @@ struct InstalledMod {
   name: String,
   kind: String,
   path: String,
+  enabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ToggleModRequest {
+  path: String,
+  enabled: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -103,6 +111,56 @@ fn restore_modloader() -> Result<LauncherConfig, String> {
   installer::restore(&mut config)?;
   write_config(&config)?;
   Ok(config)
+}
+
+#[tauri::command]
+fn set_mod_enabled(input: ToggleModRequest) -> Result<(), String> {
+  let config = read_config()?;
+  let game_folder = config
+    .game_folder
+    .ok_or_else(|| "Set a game folder first.".to_string())?;
+  let mods_dir = PathBuf::from(game_folder).join("mods");
+  let mods_dir = mods_dir
+    .canonicalize()
+    .map_err(|_| "Mods folder does not exist.".to_string())?;
+  let path = PathBuf::from(&input.path);
+  if !path.exists() {
+    return Err("Mod path does not exist.".to_string());
+  }
+  let path = path
+    .canonicalize()
+    .map_err(|err| format!("Invalid mod path: {err}"))?;
+  if !path.starts_with(&mods_dir) || path.parent() != Some(mods_dir.as_path()) {
+    return Err("Mod must be inside the configured mods folder.".to_string());
+  }
+
+  let file_name = path
+    .file_name()
+    .and_then(|value| value.to_str())
+    .ok_or_else(|| "Invalid mod path.".to_string())?;
+
+  if input.enabled {
+    let enabled_name = file_name.trim_end_matches(".disabled");
+    if enabled_name == file_name {
+      return Ok(());
+    }
+    let target = path.with_file_name(enabled_name);
+    if target.exists() {
+      return Err("A mod with this enabled name already exists.".to_string());
+    }
+    fs::rename(&path, &target).map_err(|err| format!("Could not enable mod: {err}"))?;
+  } else {
+    if file_name.ends_with(".disabled") {
+      return Ok(());
+    }
+    let target = path.with_file_name(format!("{file_name}.disabled"));
+    if target.exists() {
+      return Err("A disabled copy of this mod already exists.".to_string());
+    }
+    fs::rename(&path, &target).map_err(|err| format!("Could not disable mod: {err}"))?;
+  }
+
+  Ok(())
 }
 
 #[tauri::command]
@@ -192,23 +250,34 @@ fn installed_mods(config: &LauncherConfig) -> Vec<InstalledMod> {
   let mut mods = Vec::new();
   for entry in entries.flatten() {
     let path = entry.path();
-    let Some(name) = path.file_name().and_then(|value| value.to_str()).map(ToOwned::to_owned) else {
+    let Some(name) = path
+      .file_name()
+      .and_then(|value| value.to_str())
+      .map(ToOwned::to_owned)
+    else {
       continue;
     };
     if name == "_oppw4" || name.starts_with('.') {
       continue;
     }
+    let enabled = !name.ends_with(".disabled");
+    let display_name = name.trim_end_matches(".disabled").to_string();
     let kind = if path.is_dir() {
       "folder"
-    } else if path.extension().and_then(|value| value.to_str()).is_some_and(|ext| ext.eq_ignore_ascii_case("zip")) {
+    } else if path
+      .extension()
+      .and_then(|value| value.to_str())
+      .is_some_and(|ext| ext.eq_ignore_ascii_case("zip") || ext.eq_ignore_ascii_case("disabled"))
+    {
       "zip"
     } else {
       continue;
     };
     mods.push(InstalledMod {
-      name,
+      name: display_name,
       kind: kind.to_string(),
       path: path.to_string_lossy().to_string(),
+      enabled,
     });
   }
   mods.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
@@ -234,6 +303,7 @@ pub fn run() {
       launch_game,
       install_modloader,
       restore_modloader,
+      set_mod_enabled,
       api_request
     ])
     .run(tauri::generate_context!())
