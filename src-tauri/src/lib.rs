@@ -33,6 +33,9 @@ struct InstalledMod {
   version: Option<String>,
   source_url: Option<String>,
   slug: Option<String>,
+  character_name: Option<String>,
+  character_slug: Option<String>,
+  mod_type: Option<String>,
   cover_data_url: Option<String>,
 }
 
@@ -43,6 +46,9 @@ struct LocalModMetadata {
   version: Option<String>,
   source_url: Option<String>,
   slug: Option<String>,
+  character_name: Option<String>,
+  character_slug: Option<String>,
+  mod_type: Option<String>,
   cover_data_url: Option<String>,
 }
 
@@ -74,6 +80,19 @@ struct ApplyMetadataRequest {
 struct InstallHostedModRequest {
   file_id: String,
   file_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InstalledModLookupRequest {
+  mod_id: Option<String>,
+  slug: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RevealModRequest {
+  path: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -323,10 +342,46 @@ fn install_hosted_mod(input: InstallHostedModRequest) -> Result<InstallHostedMod
       version: downloaded_metadata.version,
       source_url: downloaded_metadata.source_url,
       slug: downloaded_metadata.slug,
+      character_name: downloaded_metadata.character_name,
+      character_slug: downloaded_metadata.character_slug,
+      mod_type: downloaded_metadata.mod_type,
       cover_data_url: downloaded_metadata.cover_data_url,
     },
     already_up_to_date: false,
   })
+}
+
+#[tauri::command]
+fn installed_mod_for_skin(input: InstalledModLookupRequest) -> Result<Option<InstalledMod>, String> {
+  let config = read_config()?;
+  Ok(installed_mods(&config).into_iter().find(|mod_info| {
+    input.mod_id.as_ref().is_some_and(|id| mod_info.mod_id.as_ref() == Some(id))
+      || input.slug.as_ref().is_some_and(|slug| mod_info.slug.as_ref() == Some(slug))
+  }))
+}
+
+#[tauri::command]
+fn reveal_mod_in_folder(input: RevealModRequest) -> Result<(), String> {
+  let config = read_config()?;
+  let game_folder = config
+    .game_folder
+    .ok_or_else(|| "Set a game folder first.".to_string())?;
+  let mods_dir = PathBuf::from(game_folder).join("mods");
+  let mods_dir = mods_dir
+    .canonicalize()
+    .map_err(|_| "Mods folder does not exist.".to_string())?;
+  let path = PathBuf::from(input.path);
+  if !path.exists() {
+    return Err("Mod path does not exist.".to_string());
+  }
+  let path = path
+    .canonicalize()
+    .map_err(|err| format!("Invalid mod path: {err}"))?;
+  if !path.starts_with(&mods_dir) || path.parent() != Some(mods_dir.as_path()) {
+    return Err("Mod must be inside the configured mods folder.".to_string());
+  }
+
+  reveal_path(&path)
 }
 
 fn open_steam_uri() -> Result<(), String> {
@@ -418,6 +473,9 @@ fn installed_mods(config: &LauncherConfig) -> Vec<InstalledMod> {
       version: metadata.version,
       source_url: metadata.source_url,
       slug: metadata.slug,
+      character_name: metadata.character_name,
+      character_slug: metadata.character_slug,
+      mod_type: metadata.mod_type,
       cover_data_url: metadata.cover_data_url,
     });
   }
@@ -456,6 +514,9 @@ fn read_mod_metadata_from_archive<R: Read + Seek>(archive: &mut ZipArchive<R>) -
     metadata.version = toml_value(&content, "version");
     metadata.source_url = toml_value(&content, "source_url");
     metadata.slug = toml_value(&content, "slug");
+    metadata.character_name = toml_value(&content, "character_name");
+    metadata.character_slug = toml_value(&content, "character_slug");
+    metadata.mod_type = toml_value(&content, "mod_type");
     if let Some(cover_path) = toml_value(&content, "cover").filter(|value| value.starts_with(".metadata/")) {
       metadata.cover_data_url = zip_image_data_url(archive, &cover_path).ok();
     }
@@ -609,6 +670,32 @@ fn replace_file(source: &Path, target: &Path) -> Result<(), String> {
   fs::rename(source, target).map_err(|err| format!("Could not replace selected ZIP: {err}"))
 }
 
+fn reveal_path(path: &Path) -> Result<(), String> {
+  #[cfg(target_os = "windows")]
+  {
+    Command::new("explorer")
+      .arg(format!("/select,{}", path.display()))
+      .spawn()
+      .map_err(|err| format!("Could not open folder: {err}"))?;
+  }
+
+  #[cfg(target_os = "linux")]
+  {
+    let folder = path.parent().ok_or_else(|| "Could not resolve mod folder.".to_string())?;
+    Command::new("xdg-open")
+      .arg(folder)
+      .spawn()
+      .map_err(|err| format!("Could not open folder: {err}"))?;
+  }
+
+  #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+  {
+    return Err("Show in folder is only implemented for Windows and Linux.".to_string());
+  }
+
+  Ok(())
+}
+
 fn now_label() -> String {
   use std::time::{SystemTime, UNIX_EPOCH};
   SystemTime::now()
@@ -631,6 +718,8 @@ pub fn run() {
       set_mod_enabled,
       apply_metadata_to_zip,
       install_hosted_mod,
+      installed_mod_for_skin,
+      reveal_mod_in_folder,
       api_request
     ])
     .run(tauri::generate_context!())

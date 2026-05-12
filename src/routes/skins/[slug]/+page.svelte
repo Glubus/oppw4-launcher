@@ -21,9 +21,17 @@
   let installBusy = false;
   let isDesktop = false;
   let activeMedia = 0;
+  let installedMod: InstalledMod | null = null;
 
   type InstallHostedModResult = {
+    modInfo: InstalledMod;
     alreadyUpToDate: boolean;
+  };
+
+  type InstalledMod = {
+    path: string;
+    version?: string | null;
+    enabled: boolean;
   };
 
   session.subscribe((value) => (current = value));
@@ -56,10 +64,20 @@
     try {
       const data = await apiFetch<{ skin: Skin }>(`/skins/${$page.params.slug}`, {}, current?.token);
       skin = data.skin;
+      await refreshInstalledMod();
     } catch (err) {
       error = err instanceof Error ? err.message : "Skin not found";
     }
   });
+
+  $: upToDate = Boolean(installedMod && skin && installedMod.version === skin.version);
+
+  async function refreshInstalledMod() {
+    if (!isDesktop || !skin) return;
+    installedMod = await invoke<InstalledMod | null>("installed_mod_for_skin", {
+      input: { modId: skin.id, slug: skin.slug }
+    });
+  }
 
   async function installMetadataIntoZip() {
     if (!skin || !isDesktop) return;
@@ -90,11 +108,22 @@
     error = "";
     try {
       const result = await invoke<InstallHostedModResult>("install_hosted_mod", { input: { fileId: file.id, fileName: file.fileName } });
+      installedMod = result.modInfo;
       installMessage = result.alreadyUpToDate ? "Already up to date." : "Installed into your mods folder.";
     } catch (err) {
       error = err instanceof Error ? err.message : typeof err === "string" ? err : "Could not install mod";
     } finally {
       installBusy = false;
+    }
+  }
+
+  async function showInstalledMod() {
+    if (!installedMod) return;
+    error = "";
+    try {
+      await invoke("reveal_mod_in_folder", { input: { path: installedMod.path } });
+    } catch (err) {
+      error = err instanceof Error ? err.message : typeof err === "string" ? err : "Could not open mod folder";
     }
   }
 
@@ -260,9 +289,9 @@
             {/if}
             {#each skin.files ?? [] as file}
               {#if isDesktop}
-                <Button type="button" class="w-full" disabled={installBusy} on:click={() => installHostedFile(file)}>
+                <Button type="button" class="w-full" variant={upToDate ? "outline" : "default"} disabled={installBusy || upToDate} on:click={() => installHostedFile(file)}>
                   <LinkKindIcon kind="zip" />
-                  {installBusy ? "Installing..." : "Install"}
+                  {installBusy ? "Installing..." : upToDate ? "Up to date" : "Install"}
                 </Button>
               {:else}
                 <Button href={`${API_BASE}/files/${file.id}/download`} class="w-full">
@@ -271,6 +300,9 @@
                 </Button>
               {/if}
             {/each}
+            {#if isDesktop && installedMod}
+              <Button type="button" class="w-full" variant="outline" on:click={showInstalledMod}>Show in folder</Button>
+            {/if}
             {#if !(skin.links?.length || skin.files?.length)}
               <p class="text-sm text-muted-foreground">No obtain link yet.</p>
             {/if}

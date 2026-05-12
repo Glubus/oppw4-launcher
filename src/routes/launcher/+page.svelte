@@ -58,6 +58,9 @@
     version?: string | null;
     sourceUrl?: string | null;
     slug?: string | null;
+    characterName?: string | null;
+    characterSlug?: string | null;
+    modType?: string | null;
     coverDataUrl?: string | null;
   };
 
@@ -79,6 +82,7 @@
   let message = "";
   let isDesktop = false;
   let installedMods: InstalledMod[] = [];
+  let modSearch = "";
   let latestRelease: ReleaseInfo | null = null;
   let needsPatcherUpdate = false;
   let activePanel: "mods" | "settings" = "mods";
@@ -89,6 +93,7 @@
   $: currentRelease = config.modloaderRelease || "Not installed";
   $: latestReleaseLabel = latestRelease?.tagName || "Unknown";
   $: updateLabel = !isInstalled ? "Install patcher" : needsPatcherUpdate ? "Update patcher" : "";
+  $: filteredInstalledMods = installedMods.filter((mod) => matchesModSearch(mod, modSearch));
 
   onMount(async () => {
     isDesktop = "__TAURI_INTERNALS__" in window;
@@ -256,6 +261,19 @@
       return mod.sourceUrl;
     }
   }
+
+  function matchesModSearch(mod: InstalledMod, value: string) {
+    const query = value.trim().toLowerCase();
+    if (!query) return true;
+    return [
+      mod.name,
+      mod.version,
+      mod.characterName,
+      mod.characterSlug,
+      mod.modType,
+      mod.slug
+    ].some((part) => part?.toLowerCase().includes(query));
+  }
 </script>
 
 <svelte:head>
@@ -305,16 +323,17 @@
           <div class="mb-5 flex items-center justify-between gap-3">
             <div>
               <h2 class="text-xl font-black">Installed mods</h2>
-              <p class="mt-1 text-sm text-muted-foreground">{installedMods.length} found in your mods folder.</p>
+              <p class="mt-1 text-sm text-muted-foreground">{filteredInstalledMods.length}/{installedMods.length} found in your mods folder.</p>
             </div>
             <Button variant="outline" size="sm" on:click={load}>Refresh</Button>
           </div>
+          <Input bind:value={modSearch} placeholder="Search installed mods, character, type, version..." />
 
           {#if !hasGameFolder}
             <p class="rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">Select a game folder in Settings to scan installed mods.</p>
-          {:else if installedMods.length}
-            <section class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {#each installedMods as mod}
+          {:else if filteredInstalledMods.length}
+            <section class="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {#each filteredInstalledMods as mod}
                 <article class="group overflow-hidden rounded-lg border border-white/10 bg-card/92 shadow-[0_18px_55px_rgba(0,0,0,0.34)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:border-white/30 {!mod.enabled ? 'grayscale opacity-60' : ''}">
                   <div class="relative aspect-[16/11] overflow-hidden bg-muted">
                     {#if mod.coverDataUrl}
@@ -335,12 +354,11 @@
 
                   <div class="grid gap-4 p-4">
                     <div class="min-w-0">
-                      <p class="truncate text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">Local mod / {mod.kind}</p>
+                      <p class="truncate text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">{mod.characterName || "Local mod"} / {mod.modType || mod.kind}</p>
                       <h2 class="line-clamp-2 text-2xl font-black leading-tight text-foreground">{mod.name}</h2>
                       {#if mod.version}
                         <p class="mt-1 text-xs font-bold text-primary">v{mod.version}</p>
                       {/if}
-                      <p class="mt-1 break-words text-xs font-bold text-muted-foreground">{mod.path}</p>
                     </div>
 
                     <div class="grid grid-cols-2 gap-2">
@@ -358,7 +376,7 @@
               {/each}
             </section>
           {:else}
-            <p class="rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">No installed mods found. Create a <span class="font-bold">mods/</span> folder next to the game executable and add mod folders or zip files.</p>
+            <p class="mt-5 rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">{installedMods.length ? "No installed mods match this search." : "No installed mods found. Create a mods/ folder next to the game executable and add mod folders or zip files."}</p>
           {/if}
         </div>
       {:else}
