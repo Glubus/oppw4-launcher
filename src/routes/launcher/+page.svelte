@@ -641,12 +641,21 @@
                       <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">{mod.kind}</span>
                       <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">{mod.enabled ? "Enabled" : "Disabled"}</span>
                     </div>
+                    {#if modPageHref(mod)}
+                      <a class="absolute inset-0 z-10 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" href={modPageHref(mod)!} aria-label={`Open ${mod.name}`}></a>
+                    {/if}
                   </div>
 
                   <div class="grid gap-4 p-4">
                     <div class="min-w-0">
                       <p class="truncate text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">{mod.characterName || "Local mod"} / {mod.modType || mod.kind}</p>
-                      <h2 class="line-clamp-2 text-2xl font-black leading-tight text-foreground">{mod.name}</h2>
+                      {#if modPageHref(mod)}
+                        <a class="mt-1 block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={modPageHref(mod)!}>
+                          <h2 class="line-clamp-2 text-2xl font-black leading-tight text-foreground">{mod.name}</h2>
+                        </a>
+                      {:else}
+                        <h2 class="line-clamp-2 text-2xl font-black leading-tight text-foreground">{mod.name}</h2>
+                      {/if}
                       {#if mod.version}
                         <p class="mt-1 text-xs font-bold text-primary">v{mod.version}</p>
                       {/if}
@@ -655,12 +664,7 @@
                       {/if}
                     </div>
 
-                    <div class="grid grid-cols-3 gap-2">
-                      {#if modPageHref(mod)}
-                        <Button variant="outline" href={modPageHref(mod)!}>View page</Button>
-                      {:else}
-                        <Button variant="outline" on:click={load}>Refresh</Button>
-                      {/if}
+                    <div class="grid grid-cols-2 gap-2">
                       {#if config.modProfiles.length}
                         <details class="relative z-30">
                           <summary class="flex h-10 w-full cursor-pointer list-none items-center justify-center rounded-md border border-white/12 bg-background/55 px-3 text-sm font-bold text-foreground shadow-sm transition-colors hover:bg-white/10">
@@ -701,8 +705,8 @@
             </div>
             <div class="flex flex-wrap gap-2">
               <Input class="w-56" bind:value={profileName} placeholder="Profile name" />
-              <Button variant="outline" disabled={!profileName.trim() || busy} on:click={createProfile}>Create empty</Button>
-              <Button disabled={!profileName.trim() || !installedMods.length || busy} on:click={saveCurrentProfile}>Save current setup</Button>
+                <Button disabled={!profileName.trim() || busy} on:click={createProfile}>Create</Button>
+                <Button variant="outline" disabled={!profileName.trim() || !installedMods.length || busy} on:click={saveCurrentProfile}>Save enabled mods</Button>
             </div>
           </div>
 
@@ -719,8 +723,16 @@
                       <span class="rounded-full border border-white/15 bg-white/8 px-2.5 py-1 text-xs font-black text-muted-foreground">Preset</span>
                     </div>
 
-                    <div class="rounded-md border border-white/10 bg-card/55 p-3">
-                      <p class="text-sm font-bold text-muted-foreground">Click to view linked mods.</p>
+                    <div class="relative h-24 overflow-hidden rounded-md border border-white/10 bg-card/55">
+                      {#if installedMods.filter((mod) => profile.enabledModKeys.includes(mod.modKey) && mod.coverDataUrl).length}
+                        <div class="absolute inset-y-0 left-0 flex min-w-max animate-[profile-scroll_18s_linear_infinite] gap-2 p-2">
+                          {#each [...installedMods.filter((mod) => profile.enabledModKeys.includes(mod.modKey) && mod.coverDataUrl), ...installedMods.filter((mod) => profile.enabledModKeys.includes(mod.modKey) && mod.coverDataUrl)] as mod}
+                            <img class="h-20 w-32 rounded object-cover" src={mod.coverDataUrl!} alt={mod.name} />
+                          {/each}
+                        </div>
+                      {:else}
+                        <div class="grid h-full place-items-center px-3 text-center text-sm font-bold text-muted-foreground">No preview images yet.</div>
+                      {/if}
                     </div>
                   </button>
 
@@ -853,23 +865,27 @@
                         <span class="rounded-full border border-amber-300/50 bg-amber-400/20 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-amber-100 backdrop-blur">To update</span>
                       {/if}
                     </div>
+                    {#if modPageHref(mod)}
+                      <a class="absolute inset-0 z-10 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" href={modPageHref(mod)!} aria-label={`Open ${mod.name}`}></a>
+                    {/if}
                   </div>
 
                   <div class="grid gap-4 p-4">
                     <div class="min-w-0">
                       <p class="truncate text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">{mod.characterName || "Local mod"} / {mod.modType || mod.kind}</p>
-                      <h3 class="line-clamp-2 text-2xl font-black leading-tight text-foreground">{mod.name}</h3>
+                      {#if modPageHref(mod)}
+                        <a class="mt-1 block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={modPageHref(mod)!}>
+                          <h3 class="line-clamp-2 text-2xl font-black leading-tight text-foreground">{mod.name}</h3>
+                        </a>
+                      {:else}
+                        <h3 class="line-clamp-2 text-2xl font-black leading-tight text-foreground">{mod.name}</h3>
+                      {/if}
                       {#if mod.version}
                         <p class="mt-1 text-xs font-bold text-primary">v{mod.version}</p>
                       {/if}
                     </div>
 
-                    <div class="grid grid-cols-2 gap-2">
-                      {#if modPageHref(mod)}
-                        <Button variant="outline" href={modPageHref(mod)!}>View page</Button>
-                      {:else}
-                        <Button variant="outline" on:click={load}>Refresh</Button>
-                      {/if}
+                    <div class="grid gap-2">
                       <Button variant={mod.enabled ? "destructive" : "default"} disabled={busy} on:click={() => toggleInstalledMod(mod)}>
                         {mod.enabled ? "Disable" : "Enable"}
                       </Button>
@@ -886,3 +902,14 @@
     </div>
   {/if}
 </main>
+
+<style>
+  @keyframes profile-scroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+</style>
