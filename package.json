@@ -7,16 +7,26 @@
     "dev": "vite --host 127.0.0.1 --port 1420",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1 --port 1420",
+    "test": "svelte-check --tsconfig ./tsconfig.json",
     "tauri": "tauri"
   },
   "dependencies": {
+    "@oppw4/shared": "file:packages/shared",
     "@tauri-apps/api": "^2.9.0",
     "@tauri-apps/plugin-dialog": "^2.4.0",
+    "@sveltejs/adapter-static": "^3.0.9",
+    "@sveltejs/kit": "^2.59.1",
+    "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "svelte": "^5.35.5"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "@tailwindcss/vite": "^4.3.0",
     "@tauri-apps/cli": "^2.9.0",
+    "svelte-check": "^4.2.2",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^4.3.0",
     "typescript": "^5.9.3",
     "vite": "^6.3.5"
   }

@@ -1,11 +1,11 @@
-import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { sveltekit } from "@sveltejs/kit/vite";
+import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [svelte()],
+  plugins: [tailwindcss(), sveltekit()],
   clearScreen: false,
   server: {
     strictPort: true
   }
 });
-

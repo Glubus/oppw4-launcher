@@ -3,8 +3,11 @@ mod installer;
 mod steam;
 
 use config::{load_config as read_config, save_config as write_config, LaunchMode, LauncherConfig, STEAM_APP_ID};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::{path::PathBuf, process::Command};
+
+const API_BASE: &str = "https://oppw4.prism.am/api";
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -12,6 +15,15 @@ struct LauncherState {
   config: LauncherConfig,
   detected_game: Option<steam::DetectedGame>,
   modloader_status: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ApiRequest {
+  method: String,
+  path: String,
+  body: Option<String>,
+  token: Option<String>,
 }
 
 #[tauri::command]
@@ -77,6 +89,41 @@ fn restore_modloader() -> Result<LauncherConfig, String> {
   Ok(config)
 }
 
+#[tauri::command]
+fn api_request(input: ApiRequest) -> Result<Value, String> {
+  let client = reqwest::blocking::Client::new();
+  let method = input.method.parse().map_err(|err| format!("Invalid API method: {err}"))?;
+  let url = if input.path.starts_with("http://") || input.path.starts_with("https://") {
+    input.path
+  } else {
+    format!("{API_BASE}{}", input.path)
+  };
+  let mut request = client
+    .request(method, url)
+    .header("accept", "application/json")
+    .header("user-agent", "oppw4-launcher");
+
+  if let Some(token) = input.token.filter(|value| !value.trim().is_empty()) {
+    request = request.bearer_auth(token);
+  }
+  if let Some(body) = input.body {
+    request = request.header("content-type", "application/json").body(body);
+  }
+
+  let response = request.send().map_err(|err| format!("API request failed: {err}"))?;
+  let status = response.status();
+  let text = response.text().map_err(|err| format!("Could not read API response: {err}"))?;
+  let json = serde_json::from_str::<Value>(&text).unwrap_or_else(|_| serde_json::json!({ "error": text }));
+  if !status.is_success() {
+    let message = json
+      .get("error")
+      .and_then(Value::as_str)
+      .unwrap_or("API request failed");
+    return Err(message.to_string());
+  }
+  Ok(json)
+}
+
 fn open_steam_uri() -> Result<(), String> {
   let uri = format!("steam://run/{STEAM_APP_ID}");
 
@@ -135,7 +182,8 @@ pub fn run() {
       detect_game,
       launch_game,
       install_modloader,
-      restore_modloader
+      restore_modloader,
+      api_request
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

@@ -27,8 +27,6 @@ pub struct InstalledFile {
 #[serde(rename_all = "camelCase")]
 pub struct LauncherConfig {
   pub launch_mode: LaunchMode,
-  #[serde(default = "default_site_url")]
-  pub site_url: String,
   pub game_folder: Option<String>,
   pub game_executable_path: Option<String>,
   pub modloader_repo: String,
@@ -41,7 +39,6 @@ impl Default for LauncherConfig {
   fn default() -> Self {
     Self {
       launch_mode: LaunchMode::Steam,
-      site_url: default_site_url(),
       game_folder: None,
       game_executable_path: None,
       modloader_repo: "Glubus/oppw4-modloader".to_string(),
@@ -50,10 +47,6 @@ impl Default for LauncherConfig {
       last_launch_at: None,
     }
   }
-}
-
-fn default_site_url() -> String {
-  "https://oppw4.prism.am".to_string()
 }
 
 pub fn app_data_dir() -> Result<PathBuf, String> {
