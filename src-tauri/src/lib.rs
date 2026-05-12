@@ -323,6 +323,26 @@ fn install_hosted_mod(input: InstallHostedModRequest) -> Result<InstallHostedMod
       already_up_to_date: true,
     });
   }
+  if let Some(existing) = installed_mods(&config).into_iter().find(|mod_info| same_mod_identity(mod_info, &downloaded_metadata)) {
+    fs::write(&existing.path, bytes).map_err(|err| format!("Could not update mod ZIP: {err}"))?;
+    return Ok(InstallHostedModResult {
+      mod_info: InstalledMod {
+        name: downloaded_metadata.title.unwrap_or(existing.name),
+        kind: existing.kind,
+        path: existing.path,
+        enabled: existing.enabled,
+        mod_id: downloaded_metadata.mod_id,
+        version: downloaded_metadata.version,
+        source_url: downloaded_metadata.source_url,
+        slug: downloaded_metadata.slug,
+        character_name: downloaded_metadata.character_name,
+        character_slug: downloaded_metadata.character_slug,
+        mod_type: downloaded_metadata.mod_type,
+        cover_data_url: downloaded_metadata.cover_data_url,
+      },
+      already_up_to_date: false,
+    });
+  }
 
   let target = available_mod_path(&mods_dir, &input.file_name);
   fs::write(&target, bytes).map_err(|err| format!("Could not write mod ZIP: {err}"))?;
@@ -529,10 +549,13 @@ fn same_mod_version(mod_info: &InstalledMod, metadata: &LocalModMetadata) -> boo
   if metadata.version.is_none() {
     return false;
   }
-  let same_identity = metadata.mod_id.as_ref().is_some_and(|id| mod_info.mod_id.as_ref() == Some(id))
+  same_mod_identity(mod_info, metadata) && mod_info.version.as_ref() == metadata.version.as_ref()
+}
+
+fn same_mod_identity(mod_info: &InstalledMod, metadata: &LocalModMetadata) -> bool {
+  metadata.mod_id.as_ref().is_some_and(|id| mod_info.mod_id.as_ref() == Some(id))
     || metadata.slug.as_ref().is_some_and(|slug| mod_info.slug.as_ref() == Some(slug))
-    || metadata.source_url.as_ref().is_some_and(|url| mod_info.source_url.as_ref() == Some(url));
-  same_identity && mod_info.version.as_ref() == metadata.version.as_ref()
+    || metadata.source_url.as_ref().is_some_and(|url| mod_info.source_url.as_ref() == Some(url))
 }
 
 fn toml_value(content: &str, key: &str) -> Option<String> {

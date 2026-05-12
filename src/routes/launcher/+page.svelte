@@ -10,7 +10,7 @@
   import Card from "$lib/components/ui/Card.svelte";
   import Input from "$lib/components/ui/Input.svelte";
   import Label from "$lib/components/ui/Label.svelte";
-  import type { Character } from "$lib/api";
+  import { apiFetch, type Character, type Skin } from "$lib/api";
 
   type LaunchMode = "steam" | "executable";
 
@@ -81,7 +81,8 @@
   const statusOptions = [
     { value: "", label: "All status" },
     { value: "enabled", label: "Enabled" },
-    { value: "disabled", label: "Disabled" }
+    { value: "disabled", label: "Disabled" },
+    { value: "to_update", label: "To update" }
   ];
 
   let config = defaultConfig;
@@ -101,6 +102,9 @@
   let latestRelease: ReleaseInfo | null = null;
   let needsPatcherUpdate = false;
   let activePanel: "mods" | "settings" = "mods";
+  let updateSkins: Record<string, Skin> = {};
+  let checkingUpdates = false;
+  let updatingAll = false;
 
   $: hasGameFolder = Boolean(config.gameFolder);
   $: canLaunch = config.launchMode === "steam" || Boolean(config.gameExecutablePath);
@@ -113,6 +117,7 @@
     installedMods.filter((mod) => matchesModFilters(mod)),
     modSort
   );
+  $: updateCount = installedMods.filter((mod) => Boolean(updateSkins[mod.path])).length;
 
   onMount(async () => {
     isDesktop = "__TAURI_INTERNALS__" in window;
@@ -133,6 +138,7 @@
       installedMods = state.installedMods ?? [];
       latestRelease = state.latestRelease ?? null;
       needsPatcherUpdate = state.needsPatcherUpdate;
+      await checkInstalledUpdates(installedMods);
     } catch (err) {
       error = errorMessage(err, "Could not load launcher state");
     } finally {
@@ -255,6 +261,54 @@
     }
   }
 
+  async function checkInstalledUpdates(mods = installedMods) {
+    checkingUpdates = true;
+    const nextUpdates: Record<string, Skin> = {};
+    try {
+      await Promise.all(
+        mods.map(async (mod) => {
+          const slug = mod.slug || slugFromSourceUrl(mod.sourceUrl);
+          if (!slug || !mod.version) return;
+          try {
+            const data = await apiFetch<{ skin: Skin }>(`/skins/${encodeURIComponent(slug)}`);
+            const latestFile = data.skin.files?.[0];
+            if (latestFile && data.skin.version !== mod.version) {
+              nextUpdates[mod.path] = data.skin;
+            }
+          } catch {
+            // Local mods can point to stale or private pages; keep the launcher usable.
+          }
+        })
+      );
+      updateSkins = nextUpdates;
+    } finally {
+      checkingUpdates = false;
+    }
+  }
+
+  async function updateAllInstalledMods() {
+    const updates = installedMods
+      .map((mod) => ({ mod, skin: updateSkins[mod.path] }))
+      .filter((item): item is { mod: InstalledMod; skin: Skin } => Boolean(item.skin?.files?.[0]));
+    if (!updates.length) return;
+
+    updatingAll = true;
+    error = "";
+    message = "";
+    try {
+      for (const { skin } of updates) {
+        const file = skin.files![0];
+        await invoke("install_hosted_mod", { input: { fileId: file.id, fileName: file.fileName } });
+      }
+      await load();
+      message = `Updated ${updates.length} mod${updates.length > 1 ? "s" : ""}.`;
+    } catch (err) {
+      error = errorMessage(err, "Could not update installed mods");
+    } finally {
+      updatingAll = false;
+    }
+  }
+
   function errorMessage(err: unknown, fallback: string) {
     return err instanceof Error ? err.message : typeof err === "string" ? err : fallback;
   }
@@ -281,6 +335,16 @@
     }
   }
 
+  function slugFromSourceUrl(value?: string | null) {
+    if (!value) return null;
+    try {
+      const parts = new URL(value).pathname.split("/").filter(Boolean);
+      return parts[0] === "skins" ? parts[1] : null;
+    } catch {
+      return null;
+    }
+  }
+
   function matchesModFilters(mod: InstalledMod) {
     const query = modSearch.trim().toLowerCase();
     const matchesQuery = !query || [
@@ -293,7 +357,8 @@
     ].some((part) => part?.toLowerCase().includes(query));
     const matchesCharacter = !modCharacter || mod.characterSlug === modCharacter;
     const matchesType = !modType || mod.modType === modType;
-    const matchesStatus = !modStatus || (modStatus === "enabled" ? mod.enabled : !mod.enabled);
+    const matchesStatus = !modStatus
+      || (modStatus === "enabled" ? mod.enabled : modStatus === "disabled" ? !mod.enabled : Boolean(updateSkins[mod.path]));
     return matchesQuery && matchesCharacter && matchesType && matchesStatus;
   }
 
@@ -386,7 +451,16 @@
               <h2 class="text-xl font-black">Installed mods</h2>
               <p class="mt-1 text-sm text-muted-foreground">{filteredInstalledMods.length}/{installedMods.length} found in your mods folder.</p>
             </div>
-            <Button variant="outline" size="sm" on:click={load}>Refresh</Button>
+            <div class="flex flex-wrap gap-2">
+              {#if updateCount}
+                <Button size="sm" disabled={updatingAll} on:click={updateAllInstalledMods}>
+                  {updatingAll ? "Updating..." : `Update all (${updateCount})`}
+                </Button>
+              {/if}
+              <Button variant="outline" size="sm" disabled={checkingUpdates || updatingAll} on:click={load}>
+                {checkingUpdates ? "Checking..." : "Refresh"}
+              </Button>
+            </div>
           </div>
           <section class="relative z-30 grid gap-3 overflow-visible rounded-lg border border-white/10 bg-card/86 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-md lg:grid-cols-[1fr_210px_240px_180px_160px_auto]">
             <label class="input input-bordered flex items-center gap-2 bg-background/60">
@@ -435,6 +509,9 @@
                     <div class="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background/88 to-transparent"></div>
                     <div class="absolute left-3 top-3 z-20 flex flex-wrap gap-2">
                       <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">Installed</span>
+                      {#if updateSkins[mod.path]}
+                        <span class="rounded-full border border-amber-300/50 bg-amber-400/20 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-amber-100 backdrop-blur">To update</span>
+                      {/if}
                       <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">{mod.kind}</span>
                       <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">{mod.enabled ? "Enabled" : "Disabled"}</span>
                     </div>
@@ -446,6 +523,9 @@
                       <h2 class="line-clamp-2 text-2xl font-black leading-tight text-foreground">{mod.name}</h2>
                       {#if mod.version}
                         <p class="mt-1 text-xs font-bold text-primary">v{mod.version}</p>
+                      {/if}
+                      {#if updateSkins[mod.path]}
+                        <p class="mt-1 text-xs font-bold text-amber-300">Latest v{updateSkins[mod.path].version}</p>
                       {/if}
                     </div>
 
