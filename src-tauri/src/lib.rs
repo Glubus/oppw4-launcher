@@ -5,7 +5,8 @@ mod steam;
 use config::{load_config as read_config, save_config as write_config, LaunchMode, LauncherConfig, STEAM_APP_ID};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{fs, path::PathBuf, process::Command};
+use std::{fs, io::{Cursor, Read, Write}, path::{Path, PathBuf}, process::Command};
+use zip::{write::SimpleFileOptions, CompressionMethod, ZipArchive, ZipWriter};
 
 const API_BASE: &str = "https://oppw4.prism.am/api";
 
@@ -43,6 +44,20 @@ struct ApiRequest {
   path: String,
   body: Option<String>,
   token: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ApplyMetadataRequest {
+  skin_id: String,
+  zip_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InstallHostedModRequest {
+  file_id: String,
+  file_name: String,
 }
 
 #[tauri::command]
@@ -198,6 +213,81 @@ fn api_request(input: ApiRequest) -> Result<Value, String> {
   Ok(json)
 }
 
+#[tauri::command]
+fn apply_metadata_to_zip(input: ApplyMetadataRequest) -> Result<(), String> {
+  let target_path = PathBuf::from(input.zip_path);
+  if !target_path.exists() {
+    return Err("Selected ZIP does not exist.".to_string());
+  }
+  if !target_path
+    .extension()
+    .and_then(|value| value.to_str())
+    .is_some_and(|ext| ext.eq_ignore_ascii_case("zip"))
+  {
+    return Err("Select a ZIP archive.".to_string());
+  }
+
+  let url = format!("{API_BASE}/skins/{}/metadata.zip", input.skin_id);
+  let bytes = reqwest::blocking::Client::new()
+    .get(url)
+    .header("accept", "application/zip")
+    .header("user-agent", "oppw4-launcher")
+    .send()
+    .map_err(|err| format!("Could not download metadata: {err}"))?
+    .error_for_status()
+    .map_err(|err| format!("Metadata download failed: {err}"))?
+    .bytes()
+    .map_err(|err| format!("Could not read metadata download: {err}"))?;
+
+  let metadata_entries = read_metadata_entries(bytes.as_ref())?;
+  if !metadata_entries.iter().any(|entry| entry.0 == "metadata.toml") {
+    return Err("Downloaded metadata ZIP does not contain metadata.toml.".to_string());
+  }
+
+  inject_metadata_entries(&target_path, metadata_entries)
+}
+
+#[tauri::command]
+fn install_hosted_mod(input: InstallHostedModRequest) -> Result<InstalledMod, String> {
+  let config = read_config()?;
+  let game_folder = config
+    .game_folder
+    .ok_or_else(|| "Set a game folder first.".to_string())?;
+  let mods_dir = PathBuf::from(game_folder).join("mods");
+  fs::create_dir_all(&mods_dir).map_err(|err| format!("Could not create mods folder: {err}"))?;
+
+  let url = format!("{API_BASE}/files/{}/download", input.file_id);
+  let bytes = reqwest::blocking::Client::new()
+    .get(url)
+    .header("accept", "application/zip")
+    .header("user-agent", "oppw4-launcher")
+    .send()
+    .map_err(|err| format!("Could not download mod: {err}"))?
+    .error_for_status()
+    .map_err(|err| format!("Mod download failed: {err}"))?
+    .bytes()
+    .map_err(|err| format!("Could not read mod download: {err}"))?;
+
+  if !bytes.starts_with(b"PK") {
+    return Err("Downloaded file is not a ZIP archive.".to_string());
+  }
+
+  let target = available_mod_path(&mods_dir, &input.file_name);
+  fs::write(&target, bytes).map_err(|err| format!("Could not write mod ZIP: {err}"))?;
+  let name = target
+    .file_name()
+    .and_then(|value| value.to_str())
+    .unwrap_or("installed.zip")
+    .to_string();
+
+  Ok(InstalledMod {
+    name: name.trim_end_matches(".disabled").to_string(),
+    kind: "zip".to_string(),
+    path: target.to_string_lossy().to_string(),
+    enabled: true,
+  })
+}
+
 fn open_steam_uri() -> Result<(), String> {
   let uri = format!("steam://run/{STEAM_APP_ID}");
 
@@ -284,6 +374,108 @@ fn installed_mods(config: &LauncherConfig) -> Vec<InstalledMod> {
   mods
 }
 
+fn read_metadata_entries(bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, String> {
+  let reader = Cursor::new(bytes);
+  let mut archive = ZipArchive::new(reader).map_err(|err| format!("Could not open metadata ZIP: {err}"))?;
+  let mut entries = Vec::new();
+
+  for index in 0..archive.len() {
+    let mut entry = archive.by_index(index).map_err(|err| format!("Could not read metadata ZIP: {err}"))?;
+    if entry.is_dir() {
+      continue;
+    }
+    let name = entry.name().replace('\\', "/");
+    if name != "metadata.toml" && !name.starts_with(".metadata/") {
+      continue;
+    }
+    if name.contains("..") || name.starts_with('/') {
+      return Err("Metadata ZIP contains an unsafe path.".to_string());
+    }
+    let mut content = Vec::new();
+    entry
+      .read_to_end(&mut content)
+      .map_err(|err| format!("Could not read metadata entry: {err}"))?;
+    entries.push((name, content));
+  }
+
+  Ok(entries)
+}
+
+fn inject_metadata_entries(target_path: &Path, metadata_entries: Vec<(String, Vec<u8>)>) -> Result<(), String> {
+  let source_file = fs::File::open(target_path).map_err(|err| format!("Could not open selected ZIP: {err}"))?;
+  let mut source = ZipArchive::new(source_file).map_err(|err| format!("Could not read selected ZIP: {err}"))?;
+  let temp_path = target_path.with_extension("zip.metadata-tmp");
+  let backup_path = target_path.with_extension("zip.metadata-backup");
+  let temp_file = fs::File::create(&temp_path).map_err(|err| format!("Could not create temporary ZIP: {err}"))?;
+  let mut writer = ZipWriter::new(temp_file);
+
+  for index in 0..source.len() {
+    let entry = source.by_index(index).map_err(|err| format!("Could not read selected ZIP entry: {err}"))?;
+    let name = entry.name().replace('\\', "/");
+    if name == "metadata.toml" || name.starts_with(".metadata/") {
+      continue;
+    }
+    writer
+      .raw_copy_file(entry)
+      .map_err(|err| format!("Could not copy selected ZIP entry: {err}"))?;
+  }
+
+  let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+  for (name, content) in metadata_entries {
+    writer
+      .start_file(name, options)
+      .map_err(|err| format!("Could not write metadata entry: {err}"))?;
+    writer
+      .write_all(&content)
+      .map_err(|err| format!("Could not write metadata entry: {err}"))?;
+  }
+  writer.finish().map_err(|err| format!("Could not finish ZIP: {err}"))?;
+
+  fs::copy(target_path, &backup_path).map_err(|err| format!("Could not create ZIP backup: {err}"))?;
+  if let Err(err) = replace_file(&temp_path, target_path) {
+    let _ = fs::copy(&backup_path, target_path);
+    let _ = fs::remove_file(&temp_path);
+    return Err(err);
+  }
+  let _ = fs::remove_file(&backup_path);
+  Ok(())
+}
+
+fn available_mod_path(mods_dir: &Path, file_name: &str) -> PathBuf {
+  let safe_name = Path::new(file_name)
+    .file_name()
+    .and_then(|value| value.to_str())
+    .filter(|value| !value.trim().is_empty())
+    .unwrap_or("mod.zip");
+  let stem = safe_name
+    .trim_end_matches(".zip")
+    .trim_end_matches(".ZIP")
+    .trim()
+    .replace(['/', '\\'], "-");
+  let stem = if stem.is_empty() { "mod".to_string() } else { stem };
+
+  for index in 0..1000 {
+    let name = if index == 0 {
+      format!("{stem}.zip")
+    } else {
+      format!("{stem}-{index}.zip")
+    };
+    let candidate = mods_dir.join(name);
+    if !candidate.exists() {
+      return candidate;
+    }
+  }
+
+  mods_dir.join(format!("{stem}-{}.zip", now_label()))
+}
+
+fn replace_file(source: &Path, target: &Path) -> Result<(), String> {
+  if target.exists() {
+    fs::remove_file(target).map_err(|err| format!("Could not replace selected ZIP: {err}"))?;
+  }
+  fs::rename(source, target).map_err(|err| format!("Could not replace selected ZIP: {err}"))
+}
+
 fn now_label() -> String {
   use std::time::{SystemTime, UNIX_EPOCH};
   SystemTime::now()
@@ -304,8 +496,49 @@ pub fn run() {
       install_modloader,
       restore_modloader,
       set_mod_enabled,
+      apply_metadata_to_zip,
+      install_hosted_mod,
       api_request
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn inject_metadata_replaces_metadata_entries_only() {
+    let temp = tempfile::tempdir().unwrap();
+    let zip_path = temp.path().join("mod.zip");
+    {
+      let file = fs::File::create(&zip_path).unwrap();
+      let mut writer = ZipWriter::new(file);
+      let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+      writer.start_file("mod/file.txt", options).unwrap();
+      writer.write_all(b"keep").unwrap();
+      writer.start_file("metadata.toml", options).unwrap();
+      writer.write_all(b"old").unwrap();
+      writer.start_file(".metadata/cover.png", options).unwrap();
+      writer.write_all(b"old-cover").unwrap();
+      writer.finish().unwrap();
+    }
+
+    inject_metadata_entries(&zip_path, vec![
+      ("metadata.toml".to_string(), b"new".to_vec()),
+      (".metadata/cover.png".to_string(), b"new-cover".to_vec()),
+    ]).unwrap();
+
+    let file = fs::File::open(&zip_path).unwrap();
+    let mut archive = ZipArchive::new(file).unwrap();
+    let mut kept = String::new();
+    archive.by_name("mod/file.txt").unwrap().read_to_string(&mut kept).unwrap();
+    let mut metadata = String::new();
+    archive.by_name("metadata.toml").unwrap().read_to_string(&mut metadata).unwrap();
+
+    assert_eq!(kept, "keep");
+    assert_eq!(metadata, "new");
+    assert!(archive.by_name(".metadata/cover.png").is_ok());
+  }
 }

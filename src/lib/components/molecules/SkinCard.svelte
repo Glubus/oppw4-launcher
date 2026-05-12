@@ -1,9 +1,11 @@
 <script lang="ts">
+  import { invoke } from "@tauri-apps/api/core";
   import { API_BASE, mediaUrl, modTypeLabel, type Skin } from "$lib/api";
   import ChevronIcon from "$lib/components/atoms/ChevronIcon.svelte";
   import LinkKindIcon from "$lib/components/atoms/LinkKindIcon.svelte";
   import StatPill from "$lib/components/atoms/StatPill.svelte";
   import TagChip from "$lib/components/atoms/TagChip.svelte";
+  import { toastStore } from "$lib/stores/toasts";
   import { markdownToPlainText } from "$lib/utils/markdown";
 
   export let skin: Skin;
@@ -12,7 +14,9 @@
   export let onTogglePin: (skin: Skin) => void = () => {};
 
   let activeImage = 0;
+  let installing = false;
 
+  $: isDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   $: initials = skin.character.displayName
     .split(/\s+/)
     .slice(0, 2)
@@ -34,6 +38,7 @@
       : null;
   $: obtainKind = skin.links?.[0]?.kind ?? (skin.files?.[0] ? "zip" : "external");
   $: descriptionPreview = markdownToPlainText(skin.description);
+  $: hostedFile = skin.files?.[0] ?? null;
 
   function previousImage() {
     if (images.length < 2) return;
@@ -43,6 +48,19 @@
   function nextImage() {
     if (images.length < 2) return;
     activeImage = activeImage === images.length - 1 ? 0 : activeImage + 1;
+  }
+
+  async function installHostedMod() {
+    if (!hostedFile || installing) return;
+    installing = true;
+    try {
+      await invoke("install_hosted_mod", { input: { fileId: hostedFile.id, fileName: hostedFile.fileName } });
+      toastStore.push(`${skin.title} installed.`, "success");
+    } catch (err) {
+      toastStore.push(err instanceof Error ? err.message : typeof err === "string" ? err : "Could not install mod.", "error");
+    } finally {
+      installing = false;
+    }
   }
 </script>
 
@@ -136,7 +154,17 @@
 
     <div class="grid grid-cols-2 gap-2">
       <a class="pointer-events-auto inline-flex h-10 items-center justify-center rounded-md border border-input bg-background/70 px-4 py-2 text-sm font-bold text-foreground backdrop-blur hover:bg-accent" href={`/skins/${skin.slug}`}>View</a>
-      {#if obtainHref}
+      {#if isDesktop && hostedFile}
+        <button
+          class="pointer-events-auto inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+          type="button"
+          disabled={installing}
+          on:click={installHostedMod}
+        >
+          <LinkKindIcon kind="zip" />
+          {installing ? "Installing..." : "Install"}
+        </button>
+      {:else if obtainHref}
         <a class="pointer-events-auto inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90" href={obtainHref}>
           <LinkKindIcon kind={obtainKind} />
           Obtain

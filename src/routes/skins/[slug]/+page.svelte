@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { page } from "$app/stores";
+  import { invoke } from "@tauri-apps/api/core";
+  import { open } from "@tauri-apps/plugin-dialog";
   import { API_BASE, apiFetch, mediaUrl, modTypeLabel, type Session, type Skin } from "$lib/api";
   import { session } from "$lib/stores/session";
   import LinkKindIcon from "$lib/components/atoms/LinkKindIcon.svelte";
@@ -15,6 +17,9 @@
   let current: Session | null = null;
   let error = "";
   let statusMessage = "";
+  let installMessage = "";
+  let installBusy = false;
+  let isDesktop = false;
   let activeMedia = 0;
 
   session.subscribe((value) => (current = value));
@@ -43,6 +48,7 @@
   $: canModerate = Boolean(current?.user.roles.some((role) => role === "ROLE_ADMIN" || role === "ROLE_MODERATOR"));
 
   onMount(async () => {
+    isDesktop = "__TAURI_INTERNALS__" in window;
     try {
       const data = await apiFetch<{ skin: Skin }>(`/skins/${$page.params.slug}`, {}, current?.token);
       skin = data.skin;
@@ -50,6 +56,43 @@
       error = err instanceof Error ? err.message : "Skin not found";
     }
   });
+
+  async function installMetadataIntoZip() {
+    if (!skin || !isDesktop) return;
+    installBusy = true;
+    installMessage = "";
+    error = "";
+    try {
+      const selected = await open({
+        directory: false,
+        multiple: false,
+        title: "Select the mod ZIP to tag",
+        filters: [{ name: "ZIP archive", extensions: ["zip"] }]
+      });
+      if (typeof selected !== "string") return;
+      await invoke("apply_metadata_to_zip", { input: { skinId: skin.id, zipPath: selected } });
+      installMessage = "Metadata installed into the selected ZIP.";
+    } catch (err) {
+      error = err instanceof Error ? err.message : typeof err === "string" ? err : "Could not install metadata";
+    } finally {
+      installBusy = false;
+    }
+  }
+
+  async function installHostedFile(file: { id: string; fileName: string }) {
+    if (!skin || !isDesktop) return;
+    installBusy = true;
+    installMessage = "";
+    error = "";
+    try {
+      await invoke("install_hosted_mod", { input: { fileId: file.id, fileName: file.fileName } });
+      installMessage = `${file.fileName} installed into your mods folder.`;
+    } catch (err) {
+      error = err instanceof Error ? err.message : typeof err === "string" ? err : "Could not install mod";
+    } finally {
+      installBusy = false;
+    }
+  }
 
   async function updateStatus(nextStatus: string) {
     if (!current || !skin) return;
@@ -205,14 +248,30 @@
                 {link.label}
               </Button>
             {/each}
-            {#each skin.files ?? [] as file}
-              <Button href={`${API_BASE}/files/${file.id}/download`} class="w-full">
+            {#if isDesktop && skin.links?.length}
+              <Button type="button" class="w-full" variant="outline" disabled={installBusy} on:click={installMetadataIntoZip}>
                 <LinkKindIcon kind="zip" />
-                {file.fileName}
+                {installBusy ? "Installing metadata..." : "Install metadata into local ZIP"}
               </Button>
+            {/if}
+            {#each skin.files ?? [] as file}
+              {#if isDesktop}
+                <Button type="button" class="w-full" disabled={installBusy} on:click={() => installHostedFile(file)}>
+                  <LinkKindIcon kind="zip" />
+                  {installBusy ? "Installing..." : `Install ${file.fileName}`}
+                </Button>
+              {:else}
+                <Button href={`${API_BASE}/files/${file.id}/download`} class="w-full">
+                  <LinkKindIcon kind="zip" />
+                  {file.fileName}
+                </Button>
+              {/if}
             {/each}
             {#if !(skin.links?.length || skin.files?.length)}
               <p class="text-sm text-muted-foreground">No obtain link yet.</p>
+            {/if}
+            {#if installMessage}
+              <p class="text-sm font-bold text-primary">{installMessage}</p>
             {/if}
           </div>
         </Card>
