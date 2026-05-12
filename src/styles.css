@@ -1,0 +1,284 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #080b10;
+  color: #edf2f7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(72, 163, 255, 0.18), transparent 34rem),
+    linear-gradient(135deg, #080b10 0%, #111827 48%, #0f141b 100%);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.shell {
+  display: grid;
+  gap: 18px;
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 28px;
+}
+
+.hero,
+.panel,
+.status-card,
+.alert {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(13, 18, 27, 0.82);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px);
+}
+
+.hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  border-radius: 12px;
+  padding: 28px;
+}
+
+.eyebrow,
+.label {
+  margin: 0;
+  color: #7dd3fc;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+h1,
+h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+h1 {
+  margin-top: 8px;
+  font-size: 44px;
+  line-height: 1;
+}
+
+h2 {
+  font-size: 22px;
+}
+
+.subtitle,
+.status-card p,
+.detected p,
+.installed-list p {
+  color: #9ca3af;
+  line-height: 1.55;
+}
+
+.subtitle {
+  max-width: 640px;
+  margin: 12px 0 0;
+}
+
+.primary,
+.secondary,
+.danger,
+.mode-row button {
+  min-height: 42px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0 16px;
+  color: #f8fafc;
+  font-weight: 850;
+}
+
+.primary {
+  background: #0ea5e9;
+  border-color: rgba(125, 211, 252, 0.48);
+}
+
+.secondary,
+.mode-row button {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.danger {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.alert {
+  border-radius: 10px;
+  padding: 13px 16px;
+  font-weight: 750;
+}
+
+.alert.error {
+  border-color: rgba(248, 113, 113, 0.42);
+  background: rgba(127, 29, 29, 0.45);
+}
+
+.alert.success {
+  border-color: rgba(52, 211, 153, 0.34);
+  background: rgba(6, 78, 59, 0.35);
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.status-card {
+  min-height: 148px;
+  overflow: hidden;
+  border-radius: 10px;
+  padding: 18px;
+}
+
+.status-card strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 23px;
+}
+
+.status-card p {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 18px;
+  align-items: start;
+}
+
+.panel {
+  display: grid;
+  gap: 18px;
+  border-radius: 12px;
+  padding: 22px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.detected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 10px;
+  background: rgba(14, 165, 233, 0.08);
+  padding: 16px;
+}
+
+.detected.muted {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.detected strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.detected p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.mode-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.mode-row button {
+  border: 0;
+  border-radius: 0;
+}
+
+.mode-row button.active {
+  background: rgba(14, 165, 233, 0.25);
+  color: #e0f2fe;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.actions.vertical {
+  display: grid;
+}
+
+label {
+  display: grid;
+  gap: 8px;
+  color: #d1d5db;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+input {
+  min-height: 42px;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f8fafc;
+  padding: 0 12px;
+  outline: none;
+}
+
+.installed-list {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 16px;
+}
+
+.installed-list p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .hero,
+  .layout,
+  .status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    display: grid;
+  }
+}
+

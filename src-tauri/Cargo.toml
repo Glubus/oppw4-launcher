@@ -1,0 +1,30 @@
+[package]
+name = "oppw4-launcher"
+version = "0.1.0"
+description = "OPPW4 mod launcher"
+authors = ["OPPW4 Modding Community"]
+edition = "2021"
+
+[lib]
+name = "oppw4_launcher_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "oppw4-launcher"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+dirs = "6"
+reqwest = { version = "0.12", features = ["blocking", "json", "rustls-tls"], default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+thiserror = "2"
+zip = "4"
+
+[dev-dependencies]
+tempfile = "3"
