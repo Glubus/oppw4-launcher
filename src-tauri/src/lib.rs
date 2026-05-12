@@ -28,6 +28,7 @@ struct InstalledMod {
   name: String,
   kind: String,
   path: String,
+  mod_key: String,
   enabled: bool,
   mod_id: Option<String>,
   version: Option<String>,
@@ -57,6 +58,18 @@ struct LocalModMetadata {
 struct ToggleModRequest {
   path: String,
   enabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportExternalZipRequest {
+  path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ApplyProfileRequest {
+  profile_id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -173,6 +186,54 @@ fn restore_modloader() -> Result<LauncherConfig, String> {
 #[tauri::command]
 fn set_mod_enabled(input: ToggleModRequest) -> Result<(), String> {
   let config = read_config()?;
+  set_mod_path_enabled(&config, &input.path, input.enabled)
+}
+
+#[tauri::command]
+fn import_external_zip(input: ImportExternalZipRequest) -> Result<InstalledMod, String> {
+  let config = read_config()?;
+  let game_folder = config
+    .game_folder
+    .clone()
+    .ok_or_else(|| "Set a game folder first.".to_string())?;
+  let mods_dir = PathBuf::from(game_folder).join("mods");
+  fs::create_dir_all(&mods_dir).map_err(|err| format!("Could not create mods folder: {err}"))?;
+  let selected = PathBuf::from(input.path);
+  if !selected.exists() || !selected.is_file() {
+    return Err("Selected ZIP does not exist.".to_string());
+  }
+  if !selected
+    .extension()
+    .and_then(|value| value.to_str())
+    .is_some_and(|ext| ext.eq_ignore_ascii_case("zip"))
+  {
+    return Err("Select a .zip mod archive.".to_string());
+  }
+
+  let file_name = selected
+    .file_name()
+    .and_then(|value| value.to_str())
+    .ok_or_else(|| "Invalid ZIP file name.".to_string())?;
+  let target = available_mod_path(&mods_dir, file_name);
+  fs::copy(&selected, &target).map_err(|err| format!("Could not import ZIP: {err}"))?;
+  installed_mod_from_path(&target).ok_or_else(|| "Imported ZIP could not be scanned.".to_string())
+}
+
+#[tauri::command]
+fn apply_mod_profile(input: ApplyProfileRequest) -> Result<(), String> {
+  let config = read_config()?;
+  let profile = config
+    .mod_profiles
+    .iter()
+    .find(|profile| profile.id == input.profile_id)
+    .ok_or_else(|| "Mod profile does not exist.".to_string())?;
+  for mod_info in installed_mods(&config) {
+    set_mod_path_enabled(&config, &mod_info.path, profile.enabled_mod_keys.contains(&mod_info.mod_key))?;
+  }
+  Ok(())
+}
+
+fn set_mod_path_enabled(config: &LauncherConfig, mod_path: &str, enabled: bool) -> Result<(), String> {
   let game_folder = config
     .game_folder
     .clone()
@@ -181,7 +242,7 @@ fn set_mod_enabled(input: ToggleModRequest) -> Result<(), String> {
   let mods_dir = mods_dir
     .canonicalize()
     .map_err(|_| "Mods folder does not exist.".to_string())?;
-  let path = PathBuf::from(&input.path);
+  let path = PathBuf::from(mod_path);
   if !path.exists() {
     return Err("Mod path does not exist.".to_string());
   }
@@ -197,7 +258,7 @@ fn set_mod_enabled(input: ToggleModRequest) -> Result<(), String> {
     .and_then(|value| value.to_str())
     .ok_or_else(|| "Invalid mod path.".to_string())?;
 
-  if input.enabled {
+  if enabled {
     let enabled_name = file_name.trim_end_matches(".disabled");
     if enabled_name == file_name {
       return Ok(());
@@ -325,11 +386,13 @@ fn install_hosted_mod(input: InstallHostedModRequest) -> Result<InstallHostedMod
   }
   if let Some(existing) = installed_mods(&config).into_iter().find(|mod_info| same_mod_identity(mod_info, &downloaded_metadata)) {
     fs::write(&existing.path, bytes).map_err(|err| format!("Could not update mod ZIP: {err}"))?;
+    let mod_key = mod_key_for(&input.file_name, &downloaded_metadata);
     return Ok(InstallHostedModResult {
       mod_info: InstalledMod {
         name: downloaded_metadata.title.unwrap_or(existing.name),
         kind: existing.kind,
         path: existing.path,
+        mod_key,
         enabled: existing.enabled,
         mod_id: downloaded_metadata.mod_id,
         version: downloaded_metadata.version,
@@ -351,12 +414,14 @@ fn install_hosted_mod(input: InstallHostedModRequest) -> Result<InstallHostedMod
     .and_then(|value| value.to_str())
     .unwrap_or("installed.zip")
     .to_string();
+  let mod_key = mod_key_for(&name, &downloaded_metadata);
 
   Ok(InstallHostedModResult {
     mod_info: InstalledMod {
       name: downloaded_metadata.title.unwrap_or_else(|| name.trim_end_matches(".disabled").to_string()),
       kind: "zip".to_string(),
       path: target.to_string_lossy().to_string(),
+      mod_key,
       enabled: true,
       mod_id: downloaded_metadata.mod_id,
       version: downloaded_metadata.version,
@@ -479,28 +544,64 @@ fn installed_mods(config: &LauncherConfig) -> Vec<InstalledMod> {
     } else {
       continue;
     };
-    let metadata = if kind == "zip" {
-      read_local_mod_metadata(&path).unwrap_or_default()
-    } else {
-      LocalModMetadata::default()
-    };
-    mods.push(InstalledMod {
-      name: metadata.title.unwrap_or(display_name),
-      kind: kind.to_string(),
-      path: path.to_string_lossy().to_string(),
-      enabled,
-      mod_id: metadata.mod_id,
-      version: metadata.version,
-      source_url: metadata.source_url,
-      slug: metadata.slug,
-      character_name: metadata.character_name,
-      character_slug: metadata.character_slug,
-      mod_type: metadata.mod_type,
-      cover_data_url: metadata.cover_data_url,
-    });
+    if let Some(mod_info) = installed_mod_from_parts(path, display_name, kind.to_string(), enabled) {
+      mods.push(mod_info);
+    }
   }
   mods.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
   mods
+}
+
+fn installed_mod_from_path(path: &Path) -> Option<InstalledMod> {
+  let name = path.file_name()?.to_str()?.to_string();
+  let enabled = !name.ends_with(".disabled");
+  let display_name = name.trim_end_matches(".disabled").to_string();
+  let kind = if path.is_dir() {
+    "folder"
+  } else if path
+    .extension()
+    .and_then(|value| value.to_str())
+    .is_some_and(|ext| ext.eq_ignore_ascii_case("zip") || ext.eq_ignore_ascii_case("disabled"))
+  {
+    "zip"
+  } else {
+    return None;
+  };
+  installed_mod_from_parts(path.to_path_buf(), display_name, kind.to_string(), enabled)
+}
+
+fn installed_mod_from_parts(path: PathBuf, display_name: String, kind: String, enabled: bool) -> Option<InstalledMod> {
+  let metadata = if kind == "zip" {
+    read_local_mod_metadata(&path).unwrap_or_default()
+  } else {
+    LocalModMetadata::default()
+  };
+  let mod_key = mod_key_for(&display_name, &metadata);
+  Some(InstalledMod {
+    name: metadata.title.unwrap_or(display_name),
+    kind,
+    path: path.to_string_lossy().to_string(),
+    mod_key,
+    enabled,
+    mod_id: metadata.mod_id,
+    version: metadata.version,
+    source_url: metadata.source_url,
+    slug: metadata.slug,
+    character_name: metadata.character_name,
+    character_slug: metadata.character_slug,
+    mod_type: metadata.mod_type,
+    cover_data_url: metadata.cover_data_url,
+  })
+}
+
+fn mod_key_for(display_name: &str, metadata: &LocalModMetadata) -> String {
+  metadata
+    .mod_id
+    .as_ref()
+    .map(|value| format!("id:{value}"))
+    .or_else(|| metadata.slug.as_ref().map(|value| format!("slug:{value}")))
+    .or_else(|| metadata.source_url.as_ref().map(|value| format!("source:{value}")))
+    .unwrap_or_else(|| format!("local:{}", display_name.trim_end_matches(".zip").to_lowercase()))
 }
 
 fn read_local_mod_metadata(path: &Path) -> Result<LocalModMetadata, String> {
@@ -739,6 +840,8 @@ pub fn run() {
       install_modloader,
       restore_modloader,
       set_mod_enabled,
+      import_external_zip,
+      apply_mod_profile,
       apply_metadata_to_zip,
       install_hosted_mod,
       installed_mod_for_skin,

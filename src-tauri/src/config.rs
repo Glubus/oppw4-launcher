@@ -25,6 +25,14 @@ pub struct InstalledFile {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ModProfile {
+  pub id: String,
+  pub name: String,
+  pub enabled_mod_keys: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LauncherConfig {
   pub launch_mode: LaunchMode,
   pub game_folder: Option<String>,
@@ -33,6 +41,8 @@ pub struct LauncherConfig {
   pub modloader_release: Option<String>,
   pub installed_files: Vec<InstalledFile>,
   pub last_launch_at: Option<String>,
+  #[serde(default)]
+  pub mod_profiles: Vec<ModProfile>,
 }
 
 impl Default for LauncherConfig {
@@ -45,6 +55,7 @@ impl Default for LauncherConfig {
       modloader_release: None,
       installed_files: Vec::new(),
       last_launch_at: None,
+      mod_profiles: Vec::new(),
     }
   }
 }

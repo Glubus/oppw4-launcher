@@ -3,6 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
   import CharacterCombobox from "$lib/components/molecules/CharacterCombobox.svelte";
+  import MarkdownContent from "$lib/components/molecules/MarkdownContent.svelte";
   import ModTypeCombobox from "$lib/components/molecules/ModTypeCombobox.svelte";
   import SortCombobox from "$lib/components/molecules/SortCombobox.svelte";
   import AppHeader from "$lib/components/organisms/AppHeader.svelte";
@@ -19,6 +20,12 @@
     backupPath?: string | null;
   };
 
+  type ModProfile = {
+    id: string;
+    name: string;
+    enabledModKeys: string[];
+  };
+
   type LauncherConfig = {
     launchMode: LaunchMode;
     gameFolder?: string | null;
@@ -27,6 +34,7 @@
     modloaderRelease?: string | null;
     installedFiles: InstalledFile[];
     lastLaunchAt?: string | null;
+    modProfiles: ModProfile[];
   };
 
   type DetectedGame = {
@@ -57,6 +65,7 @@
     name: string;
     kind: string;
     path: string;
+    modKey: string;
     enabled: boolean;
     modId?: string | null;
     version?: string | null;
@@ -75,7 +84,8 @@
     modloaderRepo: "Glubus/oppw4-patcher",
     modloaderRelease: null,
     installedFiles: [],
-    lastLaunchAt: null
+    lastLaunchAt: null,
+    modProfiles: []
   };
 
   const statusOptions = [
@@ -101,10 +111,11 @@
   let statusDetails: HTMLDetailsElement;
   let latestRelease: ReleaseInfo | null = null;
   let needsPatcherUpdate = false;
-  let activePanel: "mods" | "settings" = "mods";
+  let activePanel: "mods" | "settings" | "changelog" = "mods";
   let updateSkins: Record<string, Skin> = {};
   let checkingUpdates = false;
   let updatingAll = false;
+  let profileName = "";
 
   $: hasGameFolder = Boolean(config.gameFolder);
   $: canLaunch = config.launchMode === "steam" || Boolean(config.gameExecutablePath);
@@ -259,6 +270,68 @@
     } finally {
       busy = false;
     }
+  }
+
+  async function importExternalZip() {
+    const selected = await open({
+      directory: false,
+      multiple: false,
+      title: "Import external mod ZIP",
+      filters: [{ name: "ZIP archive", extensions: ["zip"] }]
+    });
+    if (typeof selected !== "string") return;
+
+    busy = true;
+    error = "";
+    message = "";
+    try {
+      await invoke("import_external_zip", { input: { path: selected } });
+      await load();
+      message = "External ZIP imported.";
+    } catch (err) {
+      error = errorMessage(err, "Could not import ZIP");
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function saveCurrentProfile() {
+    const name = profileName.trim();
+    if (!name) return;
+    const enabledModKeys = installedMods.filter((mod) => mod.enabled).map((mod) => mod.modKey);
+    const existingIndex = config.modProfiles.findIndex((profile) => profile.name.toLowerCase() === name.toLowerCase());
+    const nextProfile: ModProfile = {
+      id: existingIndex >= 0 ? config.modProfiles[existingIndex].id : `profile-${Date.now()}`,
+      name,
+      enabledModKeys
+    };
+    const modProfiles = existingIndex >= 0
+      ? config.modProfiles.map((profile, index) => (index === existingIndex ? nextProfile : profile))
+      : [...config.modProfiles, nextProfile];
+    config = { ...config, modProfiles };
+    profileName = "";
+    await saveAndRefresh("Profile saved.");
+  }
+
+  async function applyProfile(profile: ModProfile) {
+    busy = true;
+    error = "";
+    message = "";
+    try {
+      await save();
+      await invoke("apply_mod_profile", { input: { profileId: profile.id } });
+      await load();
+      message = `${profile.name} applied.`;
+    } catch (err) {
+      error = errorMessage(err, "Could not apply profile");
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function deleteProfile(profile: ModProfile) {
+    config = { ...config, modProfiles: config.modProfiles.filter((item) => item.id !== profile.id) };
+    await saveAndRefresh("Profile deleted.");
   }
 
   async function checkInstalledUpdates(mods = installedMods) {
@@ -439,9 +512,10 @@
     {/if}
 
     <Card class="p-3">
-      <div class="grid grid-cols-2 overflow-hidden rounded-lg border border-white/10 bg-background/45">
+      <div class="grid grid-cols-3 overflow-hidden rounded-lg border border-white/10 bg-background/45">
         <button class="h-11 font-black {activePanel === 'mods' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => (activePanel = "mods")}>Mods</button>
         <button class="h-11 font-black {activePanel === 'settings' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => (activePanel = "settings")}>Settings</button>
+        <button class="h-11 font-black {activePanel === 'changelog' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => (activePanel = "changelog")}>Changelog</button>
       </div>
 
       {#if activePanel === "mods"}
@@ -452,6 +526,7 @@
               <p class="mt-1 text-sm text-muted-foreground">{filteredInstalledMods.length}/{installedMods.length} found in your mods folder.</p>
             </div>
             <div class="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" disabled={busy || !hasGameFolder} on:click={importExternalZip}>Import ZIP</Button>
               {#if updateCount}
                 <Button size="sm" disabled={updatingAll} on:click={updateAllInstalledMods}>
                   {updatingAll ? "Updating..." : `Update all (${updateCount})`}
@@ -489,6 +564,33 @@
             <SortCombobox bind:value={modSort} onChange={noop} />
 
             <Button variant="outline" type="button" on:click={resetInstalledFilters}>Reset</Button>
+          </section>
+
+          <section class="mt-4 grid gap-3 rounded-lg border border-white/10 bg-background/45 p-4 md:grid-cols-[1fr_auto]">
+            <div>
+              <h3 class="font-black">Mod profiles</h3>
+              <p class="mt-1 text-sm text-muted-foreground">Save the current enabled mods, then switch presets before launching the game.</p>
+            </div>
+            <div class="flex flex-wrap gap-2 md:justify-end">
+              <Input class="w-52" bind:value={profileName} placeholder="Profile name" />
+              <Button disabled={!profileName.trim() || !installedMods.length || busy} on:click={saveCurrentProfile}>Save profile</Button>
+            </div>
+            {#if config.modProfiles.length}
+              <div class="grid gap-2 md:col-span-2">
+                {#each config.modProfiles as profile}
+                  <div class="flex flex-col gap-2 rounded-md border border-white/10 bg-card/65 p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p class="font-black">{profile.name}</p>
+                      <p class="text-xs font-bold text-muted-foreground">{profile.enabledModKeys.length} enabled mod{profile.enabledModKeys.length === 1 ? "" : "s"}</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                      <Button size="sm" disabled={busy} on:click={() => applyProfile(profile)}>Apply</Button>
+                      <Button size="sm" variant="outline" disabled={busy} on:click={() => deleteProfile(profile)}>Delete</Button>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
           </section>
 
           {#if !hasGameFolder}
@@ -547,7 +649,7 @@
             <p class="mt-5 rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">{installedMods.length ? "No installed mods match this search." : "No installed mods found. Create a mods/ folder next to the game executable and add mod folders or zip files."}</p>
           {/if}
         </div>
-      {:else}
+      {:else if activePanel === "settings"}
         <div class="grid gap-5 p-2 pt-5">
           <div>
             <h2 class="text-xl font-black">Settings</h2>
@@ -603,6 +705,25 @@
             Patcher GitHub repository
             <Input bind:value={config.modloaderRepo} on:change={() => saveAndRefresh("Repository saved.")} placeholder="owner/repository" />
           </Label>
+        </div>
+      {:else}
+        <div class="grid gap-5 p-2 pt-5">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 class="text-xl font-black">Changelog</h2>
+              <p class="mt-2 text-sm leading-6 text-muted-foreground">Latest patcher release notes from GitHub.</p>
+            </div>
+            {#if latestRelease?.htmlUrl}
+              <Button variant="outline" href={latestRelease.htmlUrl}>Open GitHub</Button>
+            {/if}
+          </div>
+
+          <div class="rounded-lg border border-white/10 bg-background/45 p-4">
+            <p class="text-sm font-black text-primary">{latestRelease?.name || latestRelease?.tagName || "Latest release"}</p>
+            <div class="mt-4">
+              <MarkdownContent value={latestRelease?.body || ""} fallback="No changelog was published for this release." />
+            </div>
+          </div>
         </div>
       {/if}
     </Card>
