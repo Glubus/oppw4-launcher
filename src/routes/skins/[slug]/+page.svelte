@@ -284,7 +284,7 @@
             {#if isDesktop && skin.links?.length}
               <Button type="button" class="w-full" variant="outline" disabled={installBusy} on:click={installMetadataIntoZip}>
                 <LinkKindIcon kind="zip" />
-                {installBusy ? "Installing metadata..." : "Install metadata into local ZIP"}
+                {installBusy ? "Linking local mod..." : "Link local mod"}
               </Button>
             {/if}
             {#each skin.files ?? [] as file}
