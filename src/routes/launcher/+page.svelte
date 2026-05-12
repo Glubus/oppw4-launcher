@@ -514,6 +514,10 @@
     return profile.enabledModKeys.includes(mod.modKey);
   }
 
+  function profilePreviewMods(profile: ModProfile) {
+    return installedMods.filter((mod) => profile.enabledModKeys.includes(mod.modKey) && mod.coverDataUrl);
+  }
+
   function openProfile(profile: ModProfile) {
     selectedProfile = profile;
   }
@@ -705,40 +709,51 @@
             </div>
             <div class="flex flex-wrap gap-2">
               <Input class="w-56" bind:value={profileName} placeholder="Profile name" />
-                <Button disabled={!profileName.trim() || busy} on:click={createProfile}>Create</Button>
-                <Button variant="outline" disabled={!profileName.trim() || !installedMods.length || busy} on:click={saveCurrentProfile}>Save enabled mods</Button>
+              <Button disabled={!profileName.trim() || busy} on:click={createProfile}>Create</Button>
+              <Button variant="outline" disabled={!profileName.trim() || !installedMods.length || busy} on:click={saveCurrentProfile}>Save enabled mods</Button>
             </div>
           </div>
 
           {#if config.modProfiles.length}
-            <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <section class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               {#each config.modProfiles as profile}
-                <article class="grid gap-4 rounded-lg border border-white/10 bg-background/45 p-4">
-                  <button class="grid gap-3 rounded-md text-left transition hover:bg-white/7 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" type="button" on:click={() => openProfile(profile)}>
-                    <div class="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 class="text-lg font-black">{profile.name}</h3>
-                        <p class="mt-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">{profileModCount(profile)}/{profile.enabledModKeys.length} mods available</p>
+                <article class="group overflow-hidden rounded-lg border border-white/10 bg-card/92 shadow-[0_18px_55px_rgba(0,0,0,0.34)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:border-white/30">
+                  <button class="relative block aspect-[16/11] w-full overflow-hidden bg-muted text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" type="button" on:click={() => openProfile(profile)} aria-label={`Open ${profile.name}`}>
+                    {#if profilePreviewMods(profile).length}
+                      <div class="absolute inset-y-0 left-0 flex min-w-max animate-[profile-scroll_22s_linear_infinite]">
+                        {#each [...profilePreviewMods(profile), ...profilePreviewMods(profile)] as mod}
+                          <img class="h-full w-52 object-cover transition duration-300 group-hover:scale-[1.025]" src={mod.coverDataUrl!} alt={mod.name} />
+                        {/each}
                       </div>
-                      <span class="rounded-full border border-white/15 bg-white/8 px-2.5 py-1 text-xs font-black text-muted-foreground">Preset</span>
-                    </div>
-
-                    <div class="relative h-24 overflow-hidden rounded-md border border-white/10 bg-card/55">
-                      {#if installedMods.filter((mod) => profile.enabledModKeys.includes(mod.modKey) && mod.coverDataUrl).length}
-                        <div class="absolute inset-y-0 left-0 flex min-w-max animate-[profile-scroll_18s_linear_infinite] gap-2 p-2">
-                          {#each [...installedMods.filter((mod) => profile.enabledModKeys.includes(mod.modKey) && mod.coverDataUrl), ...installedMods.filter((mod) => profile.enabledModKeys.includes(mod.modKey) && mod.coverDataUrl)] as mod}
-                            <img class="h-20 w-32 rounded object-cover" src={mod.coverDataUrl!} alt={mod.name} />
-                          {/each}
-                        </div>
-                      {:else}
-                        <div class="grid h-full place-items-center px-3 text-center text-sm font-bold text-muted-foreground">No preview images yet.</div>
-                      {/if}
+                    {:else}
+                      <div class="absolute inset-0 bg-[linear-gradient(135deg,hsl(var(--primary)/.22),hsl(var(--accent)/.18))]"></div>
+                      <div class="absolute left-5 top-5 rounded-md border border-white/30 bg-white/12 px-4 py-3 text-4xl font-black text-white shadow-xl backdrop-blur">
+                        {profile.name.slice(0, 2).toUpperCase()}
+                      </div>
+                    {/if}
+                    <div class="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background/88 to-transparent"></div>
+                    <div class="absolute left-3 top-3 z-20 flex flex-wrap gap-2">
+                      <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">Profile</span>
+                      <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">{profileModCount(profile)}/{profile.enabledModKeys.length} available</span>
                     </div>
                   </button>
 
-                  <div class="grid grid-cols-2 gap-2">
-                    <Button disabled={busy} on:click={() => applyProfile(profile)}>Apply</Button>
-                    <Button variant="outline" disabled={busy} on:click={() => deleteProfile(profile)}>Delete</Button>
+                  <div class="grid gap-4 p-4">
+                    <div class="min-w-0">
+                      <p class="truncate text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">Preset / {profile.enabledModKeys.length} linked mod{profile.enabledModKeys.length === 1 ? "" : "s"}</p>
+                      <button class="mt-1 block text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" type="button" on:click={() => openProfile(profile)}>
+                        <h3 class="line-clamp-2 text-2xl font-black leading-tight text-foreground">{profile.name}</h3>
+                      </button>
+                    </div>
+
+                    <p class="line-clamp-2 min-h-11 text-sm leading-5 text-muted-foreground">
+                      Opens with {profileModCount(profile)} locally available mod{profileModCount(profile) === 1 ? "" : "s"}.
+                    </p>
+
+                    <div class="grid grid-cols-2 gap-2">
+                      <Button disabled={busy} on:click={() => applyProfile(profile)}>Apply</Button>
+                      <Button variant="outline" disabled={busy} on:click={() => deleteProfile(profile)}>Delete</Button>
+                    </div>
                   </div>
                 </article>
               {/each}
