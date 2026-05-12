@@ -2,11 +2,15 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
+  import CharacterCombobox from "$lib/components/molecules/CharacterCombobox.svelte";
+  import ModTypeCombobox from "$lib/components/molecules/ModTypeCombobox.svelte";
+  import SortCombobox from "$lib/components/molecules/SortCombobox.svelte";
   import AppHeader from "$lib/components/organisms/AppHeader.svelte";
   import Button from "$lib/components/ui/Button.svelte";
   import Card from "$lib/components/ui/Card.svelte";
   import Input from "$lib/components/ui/Input.svelte";
   import Label from "$lib/components/ui/Label.svelte";
+  import type { Character } from "$lib/api";
 
   type LaunchMode = "steam" | "executable";
 
@@ -74,6 +78,12 @@
     lastLaunchAt: null
   };
 
+  const statusOptions = [
+    { value: "", label: "All status" },
+    { value: "enabled", label: "Enabled" },
+    { value: "disabled", label: "Disabled" }
+  ];
+
   let config = defaultConfig;
   let detectedGame: DetectedGame | null = null;
   let loading = true;
@@ -83,6 +93,11 @@
   let isDesktop = false;
   let installedMods: InstalledMod[] = [];
   let modSearch = "";
+  let modCharacter = "";
+  let modType = "";
+  let modStatus = "";
+  let modSort = "recent";
+  let statusDetails: HTMLDetailsElement;
   let latestRelease: ReleaseInfo | null = null;
   let needsPatcherUpdate = false;
   let activePanel: "mods" | "settings" = "mods";
@@ -93,7 +108,11 @@
   $: currentRelease = config.modloaderRelease || "Not installed";
   $: latestReleaseLabel = latestRelease?.tagName || "Unknown";
   $: updateLabel = !isInstalled ? "Install patcher" : needsPatcherUpdate ? "Update patcher" : "";
-  $: filteredInstalledMods = installedMods.filter((mod) => matchesModSearch(mod, modSearch));
+  $: installedCharacters = localCharacters(installedMods);
+  $: filteredInstalledMods = sortInstalledMods(
+    installedMods.filter((mod) => matchesModFilters(mod)),
+    modSort
+  );
 
   onMount(async () => {
     isDesktop = "__TAURI_INTERNALS__" in window;
@@ -262,10 +281,9 @@
     }
   }
 
-  function matchesModSearch(mod: InstalledMod, value: string) {
-    const query = value.trim().toLowerCase();
-    if (!query) return true;
-    return [
+  function matchesModFilters(mod: InstalledMod) {
+    const query = modSearch.trim().toLowerCase();
+    const matchesQuery = !query || [
       mod.name,
       mod.version,
       mod.characterName,
@@ -273,7 +291,50 @@
       mod.modType,
       mod.slug
     ].some((part) => part?.toLowerCase().includes(query));
+    const matchesCharacter = !modCharacter || mod.characterSlug === modCharacter;
+    const matchesType = !modType || mod.modType === modType;
+    const matchesStatus = !modStatus || (modStatus === "enabled" ? mod.enabled : !mod.enabled);
+    return matchesQuery && matchesCharacter && matchesType && matchesStatus;
   }
+
+  function sortInstalledMods(mods: InstalledMod[], value: string) {
+    return [...mods].sort((a, b) => {
+      if (value === "popular") return a.name.localeCompare(b.name);
+      if (value === "viewed") return (a.characterName || "").localeCompare(b.characterName || "") || a.name.localeCompare(b.name);
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  function localCharacters(mods: InstalledMod[]): Character[] {
+    const bySlug = new Map<string, Character>();
+    for (const mod of mods) {
+      const slug = mod.characterSlug || mod.characterName?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      if (!slug || bySlug.has(slug)) continue;
+      bySlug.set(slug, {
+        id: slug,
+        slug,
+        displayName: mod.characterName || slug,
+        isDlc: false,
+        pack: "Installed"
+      });
+    }
+    return [...bySlug.values()].sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }
+
+  function resetInstalledFilters() {
+    modSearch = "";
+    modCharacter = "";
+    modType = "";
+    modStatus = "";
+    modSort = "recent";
+  }
+
+  function selectStatus(next: string) {
+    modStatus = next;
+    if (statusDetails) statusDetails.open = false;
+  }
+
+  function noop() {}
 </script>
 
 <svelte:head>
@@ -327,7 +388,34 @@
             </div>
             <Button variant="outline" size="sm" on:click={load}>Refresh</Button>
           </div>
-          <Input bind:value={modSearch} placeholder="Search installed mods, character, type, version..." />
+          <section class="relative z-30 grid gap-3 overflow-visible rounded-lg border border-white/10 bg-card/86 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-md lg:grid-cols-[1fr_210px_240px_180px_160px_auto]">
+            <label class="input input-bordered flex items-center gap-2 bg-background/60">
+              <span class="font-black text-primary">⌕</span>
+              <input bind:value={modSearch} placeholder="Search mod, character, version..." />
+            </label>
+
+            <ModTypeCombobox bind:value={modType} onChange={noop} />
+
+            <CharacterCombobox characters={installedCharacters} bind:value={modCharacter} placeholder="All characters" valueKey="slug" includeAll={true} onChange={noop} />
+
+            <details class="relative z-40 w-full" bind:this={statusDetails}>
+              <summary class="flex h-10 w-full cursor-pointer list-none items-center justify-between rounded-md border border-white/12 bg-background/55 px-3 text-sm font-medium text-foreground shadow-sm outline-none transition-colors hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-ring">
+                <span class="truncate">{statusOptions.find((item) => item.value === modStatus)?.label ?? "All status"}</span>
+                <span class="text-muted-foreground">⌄</span>
+              </summary>
+              <div class="absolute z-50 mt-2 w-full rounded-lg border border-white/12 bg-popover/95 p-2 text-popover-foreground shadow-2xl backdrop-blur-md">
+                {#each statusOptions as item}
+                  <button class="flex h-8 w-full items-center justify-start rounded-md px-2 text-sm hover:bg-white/10" class:bg-accent={item.value === modStatus} class:text-accent-foreground={item.value === modStatus} type="button" on:click={() => selectStatus(item.value)}>
+                    {item.label}
+                  </button>
+                {/each}
+              </div>
+            </details>
+
+            <SortCombobox bind:value={modSort} onChange={noop} />
+
+            <Button variant="outline" type="button" on:click={resetInstalledFilters}>Reset</Button>
+          </section>
 
           {#if !hasGameFolder}
             <p class="rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">Select a game folder in Settings to scan installed mods.</p>

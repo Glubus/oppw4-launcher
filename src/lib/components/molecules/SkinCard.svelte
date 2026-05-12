@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { API_BASE, mediaUrl, modTypeLabel, type Skin } from "$lib/api";
   import ChevronIcon from "$lib/components/atoms/ChevronIcon.svelte";
@@ -14,13 +15,20 @@
   export let onTogglePin: (skin: Skin) => void = () => {};
 
   type InstallHostedModResult = {
+    modInfo: InstalledMod;
     alreadyUpToDate: boolean;
+  };
+
+  type InstalledMod = {
+    version?: string | null;
   };
 
   let activeImage = 0;
   let installing = false;
+  let installedMod: InstalledMod | null = null;
 
   $: isDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  $: upToDate = Boolean(installedMod && installedMod.version === skin.version);
   $: initials = skin.character.displayName
     .split(/\s+/)
     .slice(0, 2)
@@ -44,6 +52,19 @@
   $: descriptionPreview = markdownToPlainText(skin.description);
   $: hostedFile = skin.files?.[0] ?? null;
 
+  onMount(refreshInstalledState);
+
+  async function refreshInstalledState() {
+    if (!isDesktop) return;
+    try {
+      installedMod = await invoke<InstalledMod | null>("installed_mod_for_skin", {
+        input: { modId: skin.id, slug: skin.slug }
+      });
+    } catch {
+      installedMod = null;
+    }
+  }
+
   function previousImage() {
     if (images.length < 2) return;
     activeImage = activeImage === 0 ? images.length - 1 : activeImage - 1;
@@ -59,6 +80,7 @@
     installing = true;
     try {
       const result = await invoke<InstallHostedModResult>("install_hosted_mod", { input: { fileId: hostedFile.id, fileName: hostedFile.fileName } });
+      installedMod = result.modInfo;
       toastStore.push(result.alreadyUpToDate ? "Already up to date." : `${skin.title} installed.`, "success");
     } catch (err) {
       toastStore.push(err instanceof Error ? err.message : typeof err === "string" ? err : "Could not install mod.", "error");
@@ -160,13 +182,13 @@
       <a class="pointer-events-auto inline-flex h-10 items-center justify-center rounded-md border border-input bg-background/70 px-4 py-2 text-sm font-bold text-foreground backdrop-blur hover:bg-accent" href={`/skins/${skin.slug}`}>View</a>
       {#if isDesktop && hostedFile}
         <button
-          class="pointer-events-auto inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+          class="pointer-events-auto inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60 {upToDate ? 'border border-white/12 bg-background/55 text-muted-foreground' : 'bg-primary text-primary-foreground hover:bg-primary/90'}"
           type="button"
-          disabled={installing}
+          disabled={installing || upToDate}
           on:click={installHostedMod}
         >
           <LinkKindIcon kind="zip" />
-          {installing ? "Installing..." : "Install"}
+          {installing ? "Installing..." : upToDate ? "Up to date" : "Install"}
         </button>
       {:else if obtainHref}
         <a class="pointer-events-auto inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90" href={obtainHref}>
