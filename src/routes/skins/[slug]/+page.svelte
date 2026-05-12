@@ -22,6 +22,10 @@
   let isDesktop = false;
   let activeMedia = 0;
 
+  type InstallHostedModResult = {
+    alreadyUpToDate: boolean;
+  };
+
   session.subscribe((value) => (current = value));
 
   $: creatorName = skin?.creditedUsername ?? skin?.externalCreatorName ?? "uncredited";
@@ -85,8 +89,8 @@
     installMessage = "";
     error = "";
     try {
-      await invoke("install_hosted_mod", { input: { fileId: file.id, fileName: file.fileName } });
-      installMessage = `${file.fileName} installed into your mods folder.`;
+      const result = await invoke<InstallHostedModResult>("install_hosted_mod", { input: { fileId: file.id, fileName: file.fileName } });
+      installMessage = result.alreadyUpToDate ? "Already up to date." : "Installed into your mods folder.";
     } catch (err) {
       error = err instanceof Error ? err.message : typeof err === "string" ? err : "Could not install mod";
     } finally {
@@ -258,7 +262,7 @@
               {#if isDesktop}
                 <Button type="button" class="w-full" disabled={installBusy} on:click={() => installHostedFile(file)}>
                   <LinkKindIcon kind="zip" />
-                  {installBusy ? "Installing..." : `Install ${file.fileName}`}
+                  {installBusy ? "Installing..." : "Install"}
                 </Button>
               {:else}
                 <Button href={`${API_BASE}/files/${file.id}/download`} class="w-full">

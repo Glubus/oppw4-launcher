@@ -2,10 +2,11 @@ mod config;
 mod installer;
 mod steam;
 
+use base64::{engine::general_purpose, Engine as _};
 use config::{load_config as read_config, save_config as write_config, LaunchMode, LauncherConfig, STEAM_APP_ID};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{fs, io::{Cursor, Read, Write}, path::{Path, PathBuf}, process::Command};
+use std::{fs, io::{Cursor, Read, Seek, Write}, path::{Path, PathBuf}, process::Command};
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipArchive, ZipWriter};
 
 const API_BASE: &str = "https://oppw4.prism.am/api";
@@ -28,6 +29,21 @@ struct InstalledMod {
   kind: String,
   path: String,
   enabled: bool,
+  mod_id: Option<String>,
+  version: Option<String>,
+  source_url: Option<String>,
+  slug: Option<String>,
+  cover_data_url: Option<String>,
+}
+
+#[derive(Debug, Default)]
+struct LocalModMetadata {
+  mod_id: Option<String>,
+  title: Option<String>,
+  version: Option<String>,
+  source_url: Option<String>,
+  slug: Option<String>,
+  cover_data_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -58,6 +74,13 @@ struct ApplyMetadataRequest {
 struct InstallHostedModRequest {
   file_id: String,
   file_name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InstallHostedModResult {
+  mod_info: InstalledMod,
+  already_up_to_date: bool,
 }
 
 #[tauri::command]
@@ -133,6 +156,7 @@ fn set_mod_enabled(input: ToggleModRequest) -> Result<(), String> {
   let config = read_config()?;
   let game_folder = config
     .game_folder
+    .clone()
     .ok_or_else(|| "Set a game folder first.".to_string())?;
   let mods_dir = PathBuf::from(game_folder).join("mods");
   let mods_dir = mods_dir
@@ -248,10 +272,11 @@ fn apply_metadata_to_zip(input: ApplyMetadataRequest) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn install_hosted_mod(input: InstallHostedModRequest) -> Result<InstalledMod, String> {
+fn install_hosted_mod(input: InstallHostedModRequest) -> Result<InstallHostedModResult, String> {
   let config = read_config()?;
   let game_folder = config
     .game_folder
+    .clone()
     .ok_or_else(|| "Set a game folder first.".to_string())?;
   let mods_dir = PathBuf::from(game_folder).join("mods");
   fs::create_dir_all(&mods_dir).map_err(|err| format!("Could not create mods folder: {err}"))?;
@@ -272,6 +297,14 @@ fn install_hosted_mod(input: InstallHostedModRequest) -> Result<InstalledMod, St
     return Err("Downloaded file is not a ZIP archive.".to_string());
   }
 
+  let downloaded_metadata = read_mod_metadata_from_bytes(bytes.as_ref()).unwrap_or_default();
+  if let Some(existing) = installed_mods(&config).into_iter().find(|mod_info| same_mod_version(mod_info, &downloaded_metadata)) {
+    return Ok(InstallHostedModResult {
+      mod_info: existing,
+      already_up_to_date: true,
+    });
+  }
+
   let target = available_mod_path(&mods_dir, &input.file_name);
   fs::write(&target, bytes).map_err(|err| format!("Could not write mod ZIP: {err}"))?;
   let name = target
@@ -280,11 +313,19 @@ fn install_hosted_mod(input: InstallHostedModRequest) -> Result<InstalledMod, St
     .unwrap_or("installed.zip")
     .to_string();
 
-  Ok(InstalledMod {
-    name: name.trim_end_matches(".disabled").to_string(),
-    kind: "zip".to_string(),
-    path: target.to_string_lossy().to_string(),
-    enabled: true,
+  Ok(InstallHostedModResult {
+    mod_info: InstalledMod {
+      name: downloaded_metadata.title.unwrap_or_else(|| name.trim_end_matches(".disabled").to_string()),
+      kind: "zip".to_string(),
+      path: target.to_string_lossy().to_string(),
+      enabled: true,
+      mod_id: downloaded_metadata.mod_id,
+      version: downloaded_metadata.version,
+      source_url: downloaded_metadata.source_url,
+      slug: downloaded_metadata.slug,
+      cover_data_url: downloaded_metadata.cover_data_url,
+    },
+    already_up_to_date: false,
   })
 }
 
@@ -363,15 +404,107 @@ fn installed_mods(config: &LauncherConfig) -> Vec<InstalledMod> {
     } else {
       continue;
     };
+    let metadata = if kind == "zip" {
+      read_local_mod_metadata(&path).unwrap_or_default()
+    } else {
+      LocalModMetadata::default()
+    };
     mods.push(InstalledMod {
-      name: display_name,
+      name: metadata.title.unwrap_or(display_name),
       kind: kind.to_string(),
       path: path.to_string_lossy().to_string(),
       enabled,
+      mod_id: metadata.mod_id,
+      version: metadata.version,
+      source_url: metadata.source_url,
+      slug: metadata.slug,
+      cover_data_url: metadata.cover_data_url,
     });
   }
   mods.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
   mods
+}
+
+fn read_local_mod_metadata(path: &Path) -> Result<LocalModMetadata, String> {
+  let file = fs::File::open(path).map_err(|err| format!("Could not open mod ZIP: {err}"))?;
+  let mut archive = ZipArchive::new(file).map_err(|err| format!("Could not read mod ZIP: {err}"))?;
+  read_mod_metadata_from_archive(&mut archive)
+}
+
+fn read_mod_metadata_from_bytes(bytes: &[u8]) -> Result<LocalModMetadata, String> {
+  let reader = Cursor::new(bytes);
+  let mut archive = ZipArchive::new(reader).map_err(|err| format!("Could not read mod ZIP: {err}"))?;
+  read_mod_metadata_from_archive(&mut archive)
+}
+
+fn read_mod_metadata_from_archive<R: Read + Seek>(archive: &mut ZipArchive<R>) -> Result<LocalModMetadata, String> {
+  let mut metadata = LocalModMetadata::default();
+  let content = match archive.by_name("metadata.toml") {
+    Ok(mut entry) => {
+      let mut content = String::new();
+      entry
+        .read_to_string(&mut content)
+        .map_err(|err| format!("Could not read metadata.toml: {err}"))?;
+      content
+    }
+    Err(_) => return Ok(metadata),
+  };
+
+  {
+    metadata.mod_id = toml_value(&content, "mod_id");
+    metadata.title = toml_value(&content, "title");
+    metadata.version = toml_value(&content, "version");
+    metadata.source_url = toml_value(&content, "source_url");
+    metadata.slug = toml_value(&content, "slug");
+    if let Some(cover_path) = toml_value(&content, "cover").filter(|value| value.starts_with(".metadata/")) {
+      metadata.cover_data_url = zip_image_data_url(archive, &cover_path).ok();
+    }
+  }
+
+  Ok(metadata)
+}
+
+fn same_mod_version(mod_info: &InstalledMod, metadata: &LocalModMetadata) -> bool {
+  if metadata.version.is_none() {
+    return false;
+  }
+  let same_identity = metadata.mod_id.as_ref().is_some_and(|id| mod_info.mod_id.as_ref() == Some(id))
+    || metadata.slug.as_ref().is_some_and(|slug| mod_info.slug.as_ref() == Some(slug))
+    || metadata.source_url.as_ref().is_some_and(|url| mod_info.source_url.as_ref() == Some(url));
+  same_identity && mod_info.version.as_ref() == metadata.version.as_ref()
+}
+
+fn toml_value(content: &str, key: &str) -> Option<String> {
+  let prefix = format!("{key} = ");
+  content.lines().find_map(|line| {
+    let value = line.trim().strip_prefix(&prefix)?.trim();
+    if value == "\"\"" {
+      return None;
+    }
+    if value.starts_with('"') && value.ends_with('"') {
+      serde_json::from_str::<String>(value).ok().filter(|value| !value.trim().is_empty())
+    } else {
+      Some(value.to_string()).filter(|value| !value.trim().is_empty())
+    }
+  })
+}
+
+fn zip_image_data_url<R: Read + Seek>(archive: &mut ZipArchive<R>, path: &str) -> Result<String, String> {
+  let mut entry = archive.by_name(path).map_err(|err| format!("Could not read cover image: {err}"))?;
+  let mut bytes = Vec::new();
+  entry
+    .read_to_end(&mut bytes)
+    .map_err(|err| format!("Could not read cover image: {err}"))?;
+  let mime = if path.ends_with(".png") {
+    "image/png"
+  } else if path.ends_with(".jpg") || path.ends_with(".jpeg") {
+    "image/jpeg"
+  } else if path.ends_with(".webp") {
+    "image/webp"
+  } else {
+    return Err("Unsupported cover image type.".to_string());
+  };
+  Ok(format!("data:{mime};base64,{}", general_purpose::STANDARD.encode(bytes)))
 }
 
 fn read_metadata_entries(bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, String> {
@@ -526,7 +659,7 @@ mod tests {
     }
 
     inject_metadata_entries(&zip_path, vec![
-      ("metadata.toml".to_string(), b"new".to_vec()),
+      ("metadata.toml".to_string(), b"title = \"Installed Mod\"\nversion = \"1.2.3\"\nslug = \"installed-mod\"\ncover = \".metadata/cover.png\"\n".to_vec()),
       (".metadata/cover.png".to_string(), b"new-cover".to_vec()),
     ]).unwrap();
 
@@ -538,7 +671,14 @@ mod tests {
     archive.by_name("metadata.toml").unwrap().read_to_string(&mut metadata).unwrap();
 
     assert_eq!(kept, "keep");
-    assert_eq!(metadata, "new");
+    assert!(metadata.contains("Installed Mod"));
     assert!(archive.by_name(".metadata/cover.png").is_ok());
+
+    drop(archive);
+    let local_metadata = read_local_mod_metadata(&zip_path).unwrap();
+    assert_eq!(local_metadata.title.as_deref(), Some("Installed Mod"));
+    assert_eq!(local_metadata.version.as_deref(), Some("1.2.3"));
+    assert_eq!(local_metadata.slug.as_deref(), Some("installed-mod"));
+    assert!(local_metadata.cover_data_url.as_deref().unwrap_or("").starts_with("data:image/png;base64,"));
   }
 }

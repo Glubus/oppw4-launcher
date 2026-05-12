@@ -54,6 +54,11 @@
     kind: string;
     path: string;
     enabled: boolean;
+    modId?: string | null;
+    version?: string | null;
+    sourceUrl?: string | null;
+    slug?: string | null;
+    coverDataUrl?: string | null;
   };
 
   const defaultConfig: LauncherConfig = {
@@ -240,6 +245,17 @@
       .join("")
       .toUpperCase() || "MOD";
   }
+
+  function modPageHref(mod: InstalledMod) {
+    if (mod.slug) return `/skins/${encodeURIComponent(mod.slug)}`;
+    if (!mod.sourceUrl) return null;
+    try {
+      const url = new URL(mod.sourceUrl);
+      return url.pathname.startsWith("/skins/") ? url.pathname : mod.sourceUrl;
+    } catch {
+      return mod.sourceUrl;
+    }
+  }
 </script>
 
 <svelte:head>
@@ -299,12 +315,16 @@
           {:else if installedMods.length}
             <section class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               {#each installedMods as mod}
-                <article class="group overflow-hidden rounded-lg border border-white/10 bg-card/92 shadow-[0_18px_55px_rgba(0,0,0,0.34)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:border-white/30">
+                <article class="group overflow-hidden rounded-lg border border-white/10 bg-card/92 shadow-[0_18px_55px_rgba(0,0,0,0.34)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:border-white/30 {!mod.enabled ? 'grayscale opacity-60' : ''}">
                   <div class="relative aspect-[16/11] overflow-hidden bg-muted">
-                    <div class="absolute inset-0 bg-[linear-gradient(135deg,hsl(var(--primary)/.22),hsl(var(--accent)/.18))]"></div>
-                    <div class="absolute left-5 top-5 rounded-md border border-white/30 bg-white/12 px-4 py-3 text-4xl font-black text-white shadow-xl backdrop-blur">
-                      {modInitials(mod.name)}
-                    </div>
+                    {#if mod.coverDataUrl}
+                      <img class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.035] {!mod.enabled ? 'brightness-75' : ''}" src={mod.coverDataUrl} alt={mod.name} />
+                    {:else}
+                      <div class="absolute inset-0 bg-[linear-gradient(135deg,hsl(var(--primary)/.22),hsl(var(--accent)/.18))]"></div>
+                      <div class="absolute left-5 top-5 rounded-md border border-white/30 bg-white/12 px-4 py-3 text-4xl font-black text-white shadow-xl backdrop-blur">
+                        {modInitials(mod.name)}
+                      </div>
+                    {/if}
                     <div class="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background/88 to-transparent"></div>
                     <div class="absolute left-3 top-3 z-20 flex flex-wrap gap-2">
                       <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">Installed</span>
@@ -317,11 +337,18 @@
                     <div class="min-w-0">
                       <p class="truncate text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">Local mod / {mod.kind}</p>
                       <h2 class="line-clamp-2 text-2xl font-black leading-tight text-foreground">{mod.name}</h2>
+                      {#if mod.version}
+                        <p class="mt-1 text-xs font-bold text-primary">v{mod.version}</p>
+                      {/if}
                       <p class="mt-1 break-words text-xs font-bold text-muted-foreground">{mod.path}</p>
                     </div>
 
                     <div class="grid grid-cols-2 gap-2">
-                      <Button variant="outline" on:click={load}>Refresh</Button>
+                      {#if modPageHref(mod)}
+                        <Button variant="outline" href={modPageHref(mod)!}>View page</Button>
+                      {:else}
+                        <Button variant="outline" on:click={load}>Refresh</Button>
+                      {/if}
                       <Button variant={mod.enabled ? "destructive" : "default"} disabled={busy} on:click={() => toggleInstalledMod(mod)}>
                         {mod.enabled ? "Disable" : "Enable"}
                       </Button>

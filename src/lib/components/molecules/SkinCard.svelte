@@ -13,6 +13,10 @@
   export let canManagePins = false;
   export let onTogglePin: (skin: Skin) => void = () => {};
 
+  type InstallHostedModResult = {
+    alreadyUpToDate: boolean;
+  };
+
   let activeImage = 0;
   let installing = false;
 
@@ -54,8 +58,8 @@
     if (!hostedFile || installing) return;
     installing = true;
     try {
-      await invoke("install_hosted_mod", { input: { fileId: hostedFile.id, fileName: hostedFile.fileName } });
-      toastStore.push(`${skin.title} installed.`, "success");
+      const result = await invoke<InstallHostedModResult>("install_hosted_mod", { input: { fileId: hostedFile.id, fileName: hostedFile.fileName } });
+      toastStore.push(result.alreadyUpToDate ? "Already up to date." : `${skin.title} installed.`, "success");
     } catch (err) {
       toastStore.push(err instanceof Error ? err.message : typeof err === "string" ? err : "Could not install mod.", "error");
     } finally {
