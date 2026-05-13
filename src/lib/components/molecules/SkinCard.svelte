@@ -26,6 +26,7 @@
   let activeImage = 0;
   let installing = false;
   let installedMod: InstalledMod | null = null;
+  let selectedFileId = "";
 
   $: isDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   $: upToDate = Boolean(installedMod && installedMod.version === skin.version);
@@ -50,7 +51,10 @@
       : null;
   $: obtainKind = skin.links?.[0]?.kind ?? (skin.files?.[0] ? "zip" : "external");
   $: descriptionPreview = markdownToPlainText(skin.description);
-  $: hostedFile = skin.files?.[0] ?? null;
+  $: hostedFiles = skin.files ?? [];
+  $: if (!selectedFileId && hostedFiles.length) selectedFileId = hostedFiles[0].id;
+  $: if (selectedFileId && hostedFiles.length && !hostedFiles.some((file) => file.id === selectedFileId)) selectedFileId = hostedFiles[0].id;
+  $: hostedFile = hostedFiles.find((file) => file.id === selectedFileId) ?? hostedFiles[0] ?? null;
 
   onMount(refreshInstalledState);
 
@@ -181,15 +185,24 @@
     <div class="grid grid-cols-2 gap-2">
       <a class="pointer-events-auto inline-flex h-10 items-center justify-center rounded-md border border-input bg-background/70 px-4 py-2 text-sm font-bold text-foreground backdrop-blur hover:bg-accent" href={`/skins/${skin.slug}`}>View</a>
       {#if isDesktop && hostedFile}
-        <button
-          class="pointer-events-auto inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60 {upToDate ? 'border border-white/12 bg-background/55 text-muted-foreground' : 'bg-primary text-primary-foreground hover:bg-primary/90'}"
-          type="button"
-          disabled={installing || upToDate}
-          on:click={installHostedMod}
-        >
-          <LinkKindIcon kind="zip" />
-          {installing ? "Installing..." : upToDate ? "Up to date" : "Install"}
-        </button>
+        <div class="grid gap-2">
+          {#if hostedFiles.length > 1}
+            <select class="pointer-events-auto h-9 min-w-0 rounded-md border border-white/12 bg-background/80 px-2 text-xs font-bold text-foreground backdrop-blur" bind:value={selectedFileId} disabled={installing || upToDate} aria-label={`Choose ${skin.title} file`}>
+              {#each hostedFiles as file}
+                <option value={file.id}>{file.fileName}</option>
+              {/each}
+            </select>
+          {/if}
+          <button
+            class="pointer-events-auto inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60 {upToDate ? 'border border-white/12 bg-background/55 text-muted-foreground' : 'bg-primary text-primary-foreground hover:bg-primary/90'}"
+            type="button"
+            disabled={installing || upToDate}
+            on:click={installHostedMod}
+          >
+            <LinkKindIcon kind="zip" />
+            {installing ? "Installing..." : upToDate ? "Up to date" : "Install"}
+          </button>
+        </div>
       {:else if obtainHref}
         <a class="pointer-events-auto inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90" href={obtainHref}>
           <LinkKindIcon kind={obtainKind} />

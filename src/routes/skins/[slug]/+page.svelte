@@ -291,7 +291,7 @@
               {#if isDesktop}
                 <Button type="button" class="w-full" variant={upToDate ? "outline" : "default"} disabled={installBusy || upToDate} on:click={() => installHostedFile(file)}>
                   <LinkKindIcon kind="zip" />
-                  {installBusy ? "Installing..." : upToDate ? "Up to date" : "Install"}
+                  <span class="min-w-0 truncate">{installBusy ? "Installing..." : upToDate ? "Up to date" : file.fileName}</span>
                 </Button>
               {:else}
                 <Button href={`${API_BASE}/files/${file.id}/download`} class="w-full">
