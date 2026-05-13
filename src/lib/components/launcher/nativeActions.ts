@@ -55,6 +55,14 @@ export async function installModloader(ctx: LauncherActionContext) {
   }, "Could not install patcher");
 }
 
+export async function checkModloaderIntegrity(ctx: LauncherActionContext) {
+  await ctx.runBusy(async () => {
+    ctx.setConfig(await invoke<LauncherConfig>("check_modloader_integrity"));
+    await ctx.load();
+    ctx.setMessage("Patcher checked.");
+  }, "Could not check patcher");
+}
+
 export async function toggleInstalledMod(ctx: LauncherActionContext, mod: InstalledMod) {
   await ctx.runBusy(async () => {
     await invoke("set_mod_enabled", { input: { path: mod.path, enabled: !mod.enabled } });

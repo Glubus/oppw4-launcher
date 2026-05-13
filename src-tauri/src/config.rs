@@ -39,6 +39,12 @@ pub struct LauncherConfig {
   pub game_executable_path: Option<String>,
   pub modloader_repo: String,
   pub modloader_release: Option<String>,
+  #[serde(default)]
+  pub modloader_sha256: Option<String>,
+  #[serde(default)]
+  pub latest_modloader_sha256: Option<String>,
+  #[serde(default)]
+  pub latest_modloader_sha256_checked_at: Option<String>,
   pub installed_files: Vec<InstalledFile>,
   pub last_launch_at: Option<String>,
   #[serde(default)]
@@ -53,6 +59,9 @@ impl Default for LauncherConfig {
       game_executable_path: None,
       modloader_repo: "Glubus/oppw4-patcher".to_string(),
       modloader_release: None,
+      modloader_sha256: None,
+      latest_modloader_sha256: None,
+      latest_modloader_sha256_checked_at: None,
       installed_files: Vec::new(),
       last_launch_at: None,
       mod_profiles: Vec::new(),

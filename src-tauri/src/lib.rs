@@ -19,6 +19,8 @@ struct LauncherState {
   modloader_status: String,
   latest_release: Option<installer::ReleaseInfo>,
   needs_patcher_update: bool,
+  local_modloader_sha256: Option<String>,
+  remote_modloader_sha256: Option<String>,
   installed_mods: Vec<InstalledMod>,
 }
 
@@ -126,13 +128,18 @@ fn get_launcher_state() -> Result<LauncherState, String> {
       write_config(&config)?;
     }
   }
-  let modloader_status = modloader_status(&config);
+  let local_modloader_sha256 = installer::installed_dinput8_sha256(&config).ok().flatten();
+  let _ = installer::refresh_latest_modloader_hash(&mut config, false);
+  write_config(&config)?;
+  let remote_modloader_sha256 = config.latest_modloader_sha256.clone();
+  let modloader_status = modloader_status(&config, local_modloader_sha256.as_deref());
   let installed_mods = installed_mods(&config);
   let latest_release = installer::latest_release_info(&config.modloader_repo).ok().flatten();
   let needs_patcher_update = latest_release
     .as_ref()
-    .is_some_and(|release| config.modloader_release.as_deref() != Some(release.tag_name.as_str()));
-  Ok(LauncherState { config, detected_game, modloader_status, latest_release, needs_patcher_update, installed_mods })
+    .is_some_and(|release| config.modloader_release.as_deref() != Some(release.tag_name.as_str()))
+    || remote_modloader_sha256.as_ref().is_some_and(|hash| config.modloader_sha256.as_ref() != Some(hash));
+  Ok(LauncherState { config, detected_game, modloader_status, latest_release, needs_patcher_update, local_modloader_sha256, remote_modloader_sha256, installed_mods })
 }
 
 #[tauri::command]
@@ -179,6 +186,14 @@ fn install_modloader() -> Result<LauncherConfig, String> {
 fn restore_modloader() -> Result<LauncherConfig, String> {
   let mut config = read_config()?;
   installer::restore(&mut config)?;
+  write_config(&config)?;
+  Ok(config)
+}
+
+#[tauri::command]
+fn check_modloader_integrity() -> Result<LauncherConfig, String> {
+  let mut config = read_config()?;
+  installer::refresh_latest_modloader_hash(&mut config, true)?;
   write_config(&config)?;
   Ok(config)
 }
@@ -496,17 +511,23 @@ fn open_steam_uri() -> Result<(), String> {
   Ok(())
 }
 
-fn modloader_status(config: &LauncherConfig) -> String {
-  if !config.installed_files.is_empty() {
-    return "Installed".to_string();
-  }
+fn modloader_status(config: &LauncherConfig, local_hash: Option<&str>) -> String {
   let Some(game_folder) = &config.game_folder else {
     return "Missing game folder".to_string();
   };
-  if PathBuf::from(game_folder).join("dinput8.dll").exists() {
+  if !PathBuf::from(game_folder).join("dinput8.dll").exists() {
+    return if config.installed_files.is_empty() { "Missing".to_string() } else { "Missing installed dinput8.dll".to_string() };
+  }
+  if config.installed_files.is_empty() || config.modloader_sha256.is_none() {
     return "Detected unmanaged dinput8.dll".to_string();
   }
-  "Missing".to_string()
+  if local_hash != config.modloader_sha256.as_deref() {
+    return "Modified dinput8.dll".to_string();
+  }
+  if config.latest_modloader_sha256.as_ref().is_some_and(|hash| config.modloader_sha256.as_ref() != Some(hash)) {
+    return "Update available".to_string();
+  }
+  "Installed".to_string()
 }
 
 fn installed_mods(config: &LauncherConfig) -> Vec<InstalledMod> {
@@ -839,6 +860,7 @@ pub fn run() {
       launch_game,
       install_modloader,
       restore_modloader,
+      check_modloader_integrity,
       set_mod_enabled,
       import_external_zip,
       apply_mod_profile,

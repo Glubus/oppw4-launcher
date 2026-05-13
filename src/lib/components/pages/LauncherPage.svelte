@@ -28,8 +28,11 @@
   let message = "";
   let isDesktop = false;
   let installedMods: InstalledMod[] = [];
+  let modloaderStatus = "Missing";
   let latestRelease: ReleaseInfo | null = null;
   let needsPatcherUpdate = false;
+  let localModloaderSha256: string | null = null;
+  let remoteModloaderSha256: string | null = null;
   let activePanel: ActiveLauncherPanel = "mods";
   let updateSkins: Record<string, Skin> = {};
   let checkingUpdates = false;
@@ -70,8 +73,11 @@
       config = state.config;
       detectedGame = state.detectedGame ?? null;
       installedMods = state.installedMods ?? [];
+      modloaderStatus = state.modloaderStatus;
       latestRelease = state.latestRelease ?? null;
       needsPatcherUpdate = state.needsPatcherUpdate;
+      localModloaderSha256 = state.localModloaderSha256 ?? null;
+      remoteModloaderSha256 = state.remoteModloaderSha256 ?? null;
       await updateActions.checkInstalledUpdates(ctx, installedMods);
     } catch (err) {
       error = errorMessage(err, "Could not load launcher state");
@@ -118,7 +124,7 @@
 <AppHeader />
 
 <main class="mx-auto grid max-w-7xl gap-5 px-4 py-6">
-  <LauncherHero {currentRelease} {latestReleaseLabel} {updateLabel} {isDesktop} {busy} {loading} {hasGameFolder} {canLaunch} hasLatestRelease={Boolean(latestRelease)} onInstall={() => nativeActions.installModloader(ctx)} onLaunch={() => nativeActions.launchGame(ctx)} />
+  <LauncherHero {currentRelease} {latestReleaseLabel} {modloaderStatus} localHash={localModloaderSha256} remoteHash={remoteModloaderSha256} {updateLabel} {isDesktop} {busy} {loading} {hasGameFolder} {canLaunch} hasLatestRelease={Boolean(latestRelease)} onInstall={() => nativeActions.installModloader(ctx)} onLaunch={() => nativeActions.launchGame(ctx)} onCheck={() => nativeActions.checkModloaderIntegrity(ctx)} />
 
   {#if !isDesktop}
     <DesktopOnlyCard />

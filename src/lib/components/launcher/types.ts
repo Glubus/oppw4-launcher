@@ -20,6 +20,9 @@ export type LauncherConfig = {
   gameExecutablePath?: string | null;
   modloaderRepo: string;
   modloaderRelease?: string | null;
+  modloaderSha256?: string | null;
+  latestModloaderSha256?: string | null;
+  latestModloaderSha256CheckedAt?: string | null;
   installedFiles: InstalledFile[];
   lastLaunchAt?: string | null;
   modProfiles: ModProfile[];
@@ -31,6 +34,9 @@ export const defaultLauncherConfig: LauncherConfig = {
   gameExecutablePath: null,
   modloaderRepo: "Glubus/oppw4-patcher",
   modloaderRelease: null,
+  modloaderSha256: null,
+  latestModloaderSha256: null,
+  latestModloaderSha256CheckedAt: null,
   installedFiles: [],
   lastLaunchAt: null,
   modProfiles: []
@@ -73,6 +79,8 @@ export type LauncherState = {
   modloaderStatus: string;
   latestRelease?: ReleaseInfo | null;
   needsPatcherUpdate: boolean;
+  localModloaderSha256?: string | null;
+  remoteModloaderSha256?: string | null;
   installedMods: InstalledMod[];
 };
 

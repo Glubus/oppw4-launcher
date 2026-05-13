@@ -3,6 +3,9 @@
 
   export let currentRelease = "Not installed";
   export let latestReleaseLabel = "Unknown";
+  export let modloaderStatus = "Missing";
+  export let localHash: string | null | undefined = null;
+  export let remoteHash: string | null | undefined = null;
   export let updateLabel = "";
   export let isDesktop = false;
   export let busy = false;
@@ -12,6 +15,7 @@
   export let hasLatestRelease = false;
   export let onInstall: () => void = () => {};
   export let onLaunch: () => void = () => {};
+  export let onCheck: () => void = () => {};
 </script>
 
 <section class="flex flex-col gap-4 rounded-lg border border-white/10 bg-card/86 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-md md:flex-row md:items-end md:justify-between">
@@ -19,8 +23,18 @@
     <p class="text-xs font-black uppercase tracking-[0.22em] text-primary/90">Desktop launcher</p>
     <h1 class="mt-1 text-4xl font-black tracking-tight">Launch and manage mods</h1>
     <p class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Installed patcher: <span class="font-bold text-foreground">{currentRelease}</span> · Latest: <span class="font-bold text-foreground">{latestReleaseLabel}</span></p>
+    <p class="mt-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+      {modloaderStatus}
+      {#if localHash}
+        · local {localHash.slice(0, 8)}
+      {/if}
+      {#if remoteHash}
+        · latest {remoteHash.slice(0, 8)}
+      {/if}
+    </p>
   </div>
   <div class="flex flex-wrap gap-2">
+    <Button variant="outline" size="lg" disabled={!isDesktop || busy || !hasGameFolder} on:click={onCheck}>Check patcher</Button>
     {#if updateLabel}
       <Button size="lg" disabled={!isDesktop || busy || !hasGameFolder || !hasLatestRelease} on:click={onInstall}>{updateLabel}</Button>
     {/if}
