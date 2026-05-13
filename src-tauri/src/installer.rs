@@ -16,8 +16,6 @@ pub struct ReleaseInfo {
   pub html_url: String,
   pub prerelease: bool,
   pub asset_name: Option<String>,
-  pub dll_sha256: Option<String>,
-  pub dll_sha256_checked_at: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -116,8 +114,6 @@ pub fn latest_release_info(repo: &str) -> Result<Option<ReleaseInfo>, String> {
     html_url: release.html_url,
     prerelease: release.prerelease,
     asset_name,
-    dll_sha256: None,
-    dll_sha256_checked_at: None,
   }))
 }
 
@@ -326,5 +322,32 @@ mod tests {
   #[test]
   fn accepts_nested_zip_paths() {
     assert_eq!(safe_zip_path("loader/config.json").unwrap(), PathBuf::from("loader/config.json"));
+  }
+
+  #[test]
+  fn hashes_installed_dinput8_dll() {
+    let temp = tempfile::tempdir().unwrap();
+    let dll_path = temp.path().join("dinput8.dll");
+    fs::write(&dll_path, b"patcher").unwrap();
+    let config = LauncherConfig {
+      game_folder: Some(temp.path().to_string_lossy().to_string()),
+      ..LauncherConfig::default()
+    };
+
+    assert_eq!(
+      installed_dinput8_sha256(&config).unwrap().as_deref(),
+      Some("242d2f23a194483a0aea19c60f86ca2fb887d97edfd2cdfdcf4e2d650a2f79f3")
+    );
+  }
+
+  #[test]
+  fn installed_dinput8_hash_is_absent_when_dll_is_missing() {
+    let temp = tempfile::tempdir().unwrap();
+    let config = LauncherConfig {
+      game_folder: Some(temp.path().to_string_lossy().to_string()),
+      ..LauncherConfig::default()
+    };
+
+    assert_eq!(installed_dinput8_sha256(&config).unwrap(), None);
   }
 }

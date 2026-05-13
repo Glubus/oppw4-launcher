@@ -918,4 +918,82 @@ mod tests {
     assert_eq!(local_metadata.slug.as_deref(), Some("installed-mod"));
     assert!(local_metadata.cover_data_url.as_deref().unwrap_or("").starts_with("data:image/png;base64,"));
   }
+
+  #[test]
+  fn modloader_status_detects_unmanaged_dll() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::write(temp.path().join("dinput8.dll"), b"foreign").unwrap();
+    let config = LauncherConfig {
+      game_folder: Some(temp.path().to_string_lossy().to_string()),
+      ..LauncherConfig::default()
+    };
+
+    assert_eq!(modloader_status(&config, None), "Detected unmanaged dinput8.dll");
+  }
+
+  #[test]
+  fn modloader_status_detects_modified_dll() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::write(temp.path().join("dinput8.dll"), b"modified").unwrap();
+    let config = LauncherConfig {
+      game_folder: Some(temp.path().to_string_lossy().to_string()),
+      modloader_sha256: Some("expected".to_string()),
+      installed_files: vec![crate::config::InstalledFile {
+        relative_path: "dinput8.dll".to_string(),
+        backup_path: None,
+      }],
+      ..LauncherConfig::default()
+    };
+
+    assert_eq!(modloader_status(&config, Some("actual")), "Modified dinput8.dll");
+  }
+
+  #[test]
+  fn modloader_status_detects_available_update() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::write(temp.path().join("dinput8.dll"), b"current").unwrap();
+    let config = LauncherConfig {
+      game_folder: Some(temp.path().to_string_lossy().to_string()),
+      modloader_sha256: Some("current-hash".to_string()),
+      latest_modloader_sha256: Some("new-hash".to_string()),
+      installed_files: vec![crate::config::InstalledFile {
+        relative_path: "dinput8.dll".to_string(),
+        backup_path: None,
+      }],
+      ..LauncherConfig::default()
+    };
+
+    assert_eq!(modloader_status(&config, Some("current-hash")), "Update available");
+  }
+
+  #[test]
+  fn installed_mods_reads_zip_metadata_and_cover() {
+    let temp = tempfile::tempdir().unwrap();
+    let mods_dir = temp.path().join("mods");
+    fs::create_dir_all(&mods_dir).unwrap();
+    let zip_path = mods_dir.join("law.zip");
+    {
+      let file = fs::File::create(&zip_path).unwrap();
+      let mut writer = ZipWriter::new(file);
+      let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+      writer.start_file("metadata.toml", options).unwrap();
+      writer.write_all(b"title = \"Casual Law\"\nversion = \"1.0.0\"\nmod_id = \"casual-law\"\ncharacter_name = \"Trafalgar Law\"\ncover = \".metadata/cover.png\"\n").unwrap();
+      writer.start_file(".metadata/cover.png", options).unwrap();
+      writer.write_all(b"png").unwrap();
+      writer.finish().unwrap();
+    }
+    let config = LauncherConfig {
+      game_folder: Some(temp.path().to_string_lossy().to_string()),
+      ..LauncherConfig::default()
+    };
+
+    let mods = installed_mods(&config);
+
+    assert_eq!(mods.len(), 1);
+    assert_eq!(mods[0].name, "Casual Law");
+    assert_eq!(mods[0].version.as_deref(), Some("1.0.0"));
+    assert_eq!(mods[0].mod_key, "id:casual-law");
+    assert_eq!(mods[0].character_name.as_deref(), Some("Trafalgar Law"));
+    assert!(mods[0].cover_data_url.as_deref().unwrap_or("").starts_with("data:image/png;base64,"));
+  }
 }
