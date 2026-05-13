@@ -43,13 +43,13 @@
       <img class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.035]" src={preview.coverDataUrl} alt={preview.name} />
     {:else}
       <div class="absolute inset-0" style={`background: linear-gradient(135deg, ${color.from}, ${color.to});`}></div>
-      <div class="absolute left-5 top-5 grid h-16 w-16 place-items-center rounded-md border bg-white/12 shadow-xl backdrop-blur" style={`border-color: ${color.border}; color: ${color.text};`}>
-        <ProfileIcon name={icon.value} className="h-8 w-8" />
-      </div>
     {/if}
 
     <div class="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background/88 to-transparent"></div>
     <button class="absolute inset-0 z-10 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" type="button" on:click={() => onOpen(profile)} aria-label={`Open ${profile.name}`}></button>
+    <div class="absolute right-3 top-3 z-20 grid h-11 w-11 place-items-center rounded-md border shadow-xl backdrop-blur" style={`background: linear-gradient(135deg, ${color.from}, ${color.to}); border-color: ${color.border}; color: ${color.text};`}>
+      <ProfileIcon name={icon.value} className="h-5 w-5" />
+    </div>
     <div class="absolute left-3 top-3 z-20 flex flex-wrap gap-2">
       <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">Profile</span>
       <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">{availableCount}/{profile.enabledModKeys.length} available</span>
@@ -74,12 +74,7 @@
     <div class="min-w-0">
       <p class="truncate text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">Preset / {profile.enabledModKeys.length} linked mod{profile.enabledModKeys.length === 1 ? "" : "s"}</p>
       <button class="mt-1 block text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" type="button" on:click={() => onOpen(profile)}>
-        <h3 class="flex items-center gap-2 line-clamp-2 text-2xl font-black leading-tight text-foreground">
-          <span class="grid h-7 w-7 shrink-0 place-items-center rounded-md border bg-white/8" style={`border-color: ${color.border}; color: ${color.text};`}>
-            <ProfileIcon name={icon.value} className="h-4 w-4" />
-          </span>
-          {profile.name}
-        </h3>
+        <h3 class="line-clamp-2 text-2xl font-black leading-tight text-foreground">{profile.name}</h3>
       </button>
     </div>
 
