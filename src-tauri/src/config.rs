@@ -28,7 +28,19 @@ pub struct InstalledFile {
 pub struct ModProfile {
   pub id: String,
   pub name: String,
+  #[serde(default = "default_profile_icon")]
+  pub icon: String,
+  #[serde(default = "default_profile_color")]
+  pub color: String,
   pub enabled_mod_keys: Vec<String>,
+}
+
+fn default_profile_icon() -> String {
+  "sparkles".to_string()
+}
+
+fn default_profile_color() -> String {
+  "violet".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

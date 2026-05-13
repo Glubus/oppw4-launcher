@@ -18,7 +18,7 @@
   import * as nativeActions from "$lib/components/launcher/nativeActions";
   import * as profileActions from "$lib/components/launcher/profileActions";
   import * as updateActions from "$lib/components/launcher/updateActions";
-  import { defaultLauncherConfig, type ActiveLauncherPanel, type DetectedGame, type InstalledMod, type LauncherConfig, type LauncherState, type ModProfile, type ReleaseInfo } from "$lib/components/launcher/types";
+  import { defaultLauncherConfig, type ActiveLauncherPanel, type DetectedGame, type HealthCheckItem, type InstalledMod, type LauncherConfig, type LauncherState, type ModProfile, type ReleaseInfo } from "$lib/components/launcher/types";
 
   let config = defaultLauncherConfig;
   let detectedGame: DetectedGame | null = null;
@@ -39,6 +39,7 @@
   let updatingAll = false;
   let profileName = "";
   let selectedProfile: ModProfile | null = null;
+  let healthItems: HealthCheckItem[] = [];
 
   $: hasGameFolder = Boolean(config.gameFolder);
   $: canLaunch = config.launchMode === "steam" || Boolean(config.gameExecutablePath);
@@ -115,6 +116,17 @@
     }
   }
 
+  async function runHealthCheck() {
+    error = "";
+    message = "";
+    try {
+      await nativeActions.runHealthCheck((items) => (healthItems = items));
+      message = "Health check complete.";
+    } catch (err) {
+      error = errorMessage(err, "Could not run health check");
+    }
+  }
+
 </script>
 
 <svelte:head>
@@ -136,9 +148,9 @@
       {#if activePanel === "mods"}
         <LauncherModsPanel installedMods={installedMods} profiles={config.modProfiles} {updateSkins} {hasGameFolder} {busy} {checkingUpdates} {updatingAll} {updateCount} onImportZip={() => nativeActions.importExternalZip(ctx)} onUpdateAll={() => updateActions.updateAllInstalledMods(ctx)} onRefresh={load} onToggleMod={(mod) => nativeActions.toggleInstalledMod(ctx, mod)} onAddToProfile={(profile, mod) => profileActions.addModToProfile(ctx, profile, mod)} />
       {:else if activePanel === "profiles"}
-        <LauncherProfilesPanel profiles={config.modProfiles} {installedMods} bind:profileName {busy} onCreate={() => profileActions.createProfile(ctx)} onSaveEnabled={() => profileActions.saveCurrentProfile(ctx)} onOpen={(profile) => (selectedProfile = profile)} onApply={(profile) => profileActions.applyProfile(ctx, profile)} onDelete={(profile) => profileActions.deleteProfile(ctx, profile)} />
+        <LauncherProfilesPanel profiles={config.modProfiles} {installedMods} bind:profileName {busy} onCreate={() => profileActions.createProfile(ctx)} onSaveEnabled={() => profileActions.saveCurrentProfile(ctx)} onOpen={(profile) => (selectedProfile = profile)} onApply={(profile) => profileActions.applyProfile(ctx, profile)} onDelete={(profile) => profileActions.deleteProfile(ctx, profile)} onStyle={(profile, icon, color) => profileActions.updateProfileStyle(ctx, profile, icon, color)} />
       {:else if activePanel === "settings"}
-        <LauncherSettingsPanel bind:config {detectedGame} {hasGameFolder} onUseDetected={() => nativeActions.useDetectedGame(ctx)} onSetLaunchMode={(mode) => nativeActions.setLaunchMode(ctx, mode)} onChooseGameFolder={() => nativeActions.chooseGameFolder(ctx)} onChooseExecutable={() => nativeActions.chooseExecutable(ctx)} onRepositoryChange={() => saveAndRefresh("Repository saved.")} />
+        <LauncherSettingsPanel bind:config {detectedGame} {hasGameFolder} {healthItems} {busy} onUseDetected={() => nativeActions.useDetectedGame(ctx)} onSetLaunchMode={(mode) => nativeActions.setLaunchMode(ctx, mode)} onChooseGameFolder={() => nativeActions.chooseGameFolder(ctx)} onChooseExecutable={() => nativeActions.chooseExecutable(ctx)} onRepositoryChange={() => saveAndRefresh("Repository saved.")} onRunHealth={runHealthCheck} onExportDiagnostics={() => nativeActions.exportDiagnostics(ctx)} />
       {:else}
         <LauncherChangelogPanel {latestRelease} />
       {/if}

@@ -54,6 +54,15 @@
       {#if updateSkin}
         <p class="mt-1 text-xs font-bold text-amber-300">Latest v{updateSkin.version}</p>
       {/if}
+      {#if mod.dependencies.length}
+        <p class="mt-2 line-clamp-1 text-xs font-bold text-muted-foreground">Needs {mod.dependencies.join(", ")}</p>
+      {/if}
+      {#if mod.changelog}
+        <details class="mt-2 rounded-md border border-white/10 bg-background/45 p-2 text-xs text-muted-foreground">
+          <summary class="cursor-pointer font-black text-foreground">Changelog</summary>
+          <p class="mt-1 whitespace-pre-wrap leading-5">{mod.changelog}</p>
+        </details>
+      {/if}
     </div>
 
     <div class="grid grid-cols-2 gap-2">

@@ -10,7 +10,7 @@ export async function createProfile(ctx: LauncherActionContext) {
     ctx.setError("A profile with this name already exists.");
     return;
   }
-  ctx.setConfig({ ...config, modProfiles: [...config.modProfiles, { id: `profile-${Date.now()}`, name, enabledModKeys: [] }] });
+  ctx.setConfig({ ...config, modProfiles: [...config.modProfiles, { id: `profile-${Date.now()}`, name, icon: "sparkles", color: "violet", enabledModKeys: [] }] });
   ctx.setProfileName("");
   await ctx.saveAndRefresh("Profile created.");
 }
@@ -23,6 +23,8 @@ export async function saveCurrentProfile(ctx: LauncherActionContext) {
   const nextProfile = {
     id: existingIndex >= 0 ? config.modProfiles[existingIndex].id : `profile-${Date.now()}`,
     name,
+    icon: existingIndex >= 0 ? config.modProfiles[existingIndex].icon : "sparkles",
+    color: existingIndex >= 0 ? config.modProfiles[existingIndex].color : "violet",
     enabledModKeys: ctx.getInstalledMods().filter((mod) => mod.enabled).map((mod) => mod.modKey)
   };
   ctx.setConfig({
@@ -60,4 +62,13 @@ export async function deleteProfile(ctx: LauncherActionContext, profile: ModProf
   ctx.setConfig({ ...config, modProfiles: config.modProfiles.filter((item) => item.id !== profile.id) });
   if (ctx.getSelectedProfile()?.id === profile.id) ctx.setSelectedProfile(null);
   await ctx.saveAndRefresh("Profile deleted.");
+}
+
+export async function updateProfileStyle(ctx: LauncherActionContext, profile: ModProfile, icon: string, color: string) {
+  const config = ctx.getConfig();
+  ctx.setConfig({
+    ...config,
+    modProfiles: config.modProfiles.map((item) => item.id === profile.id ? { ...item, icon, color } : item)
+  });
+  await ctx.saveAndRefresh("Profile style saved.");
 }

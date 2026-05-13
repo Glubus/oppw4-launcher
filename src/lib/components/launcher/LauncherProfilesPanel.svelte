@@ -2,7 +2,7 @@
   import Button from "$lib/components/ui/Button.svelte";
   import Input from "$lib/components/ui/Input.svelte";
   import LauncherProfileCard from "$lib/components/molecules/LauncherProfileCard.svelte";
-  import { profileModCount, profilePreviewMods } from "./helpers";
+  import { profileColors, profileIcons, profileModCount, profilePreviewMods } from "./helpers";
   import type { InstalledMod, ModProfile } from "./types";
 
   export let profiles: ModProfile[] = [];
@@ -14,6 +14,7 @@
   export let onOpen: (profile: ModProfile) => void = () => {};
   export let onApply: (profile: ModProfile) => void = () => {};
   export let onDelete: (profile: ModProfile) => void = () => {};
+  export let onStyle: (profile: ModProfile, icon: string, color: string) => void = () => {};
 </script>
 
 <div class="grid gap-5 p-2 pt-5">
@@ -32,15 +33,29 @@
   {#if profiles.length}
     <section class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
       {#each profiles as profile}
-        <LauncherProfileCard
-          {profile}
-          previewMods={profilePreviewMods(profile, installedMods)}
-          availableCount={profileModCount(profile, installedMods)}
-          {busy}
-          {onOpen}
-          onApply={onApply}
-          onDelete={onDelete}
-        />
+        <div class="grid gap-2">
+          <LauncherProfileCard
+            {profile}
+            previewMods={profilePreviewMods(profile, installedMods)}
+            availableCount={profileModCount(profile, installedMods)}
+            {busy}
+            {onOpen}
+            onApply={onApply}
+            onDelete={onDelete}
+          />
+          <div class="grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-background/35 p-2">
+            <select class="h-9 rounded-md border border-white/12 bg-background/70 px-2 text-sm font-bold" value={profile.icon} disabled={busy} on:change={(event) => onStyle(profile, event.currentTarget.value, profile.color)}>
+              {#each profileIcons as icon}
+                <option value={icon.value}>{icon.label}</option>
+              {/each}
+            </select>
+            <select class="h-9 rounded-md border border-white/12 bg-background/70 px-2 text-sm font-bold" value={profile.color} disabled={busy} on:change={(event) => onStyle(profile, profile.icon, event.currentTarget.value)}>
+              {#each profileColors as color}
+                <option value={color.value}>{color.label}</option>
+              {/each}
+            </select>
+          </div>
+        </div>
       {/each}
     </section>
   {:else}

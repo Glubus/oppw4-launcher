@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import type { LauncherActionContext } from "./actionContext";
-import type { InstalledMod, LauncherConfig, LaunchMode } from "./types";
+import type { HealthCheckItem, InstalledMod, LauncherConfig, LaunchMode } from "./types";
 
 export async function chooseGameFolder(ctx: LauncherActionContext) {
   const selected = await open({ directory: true, multiple: false, title: "Select OPPW4 game folder" });
@@ -79,4 +79,21 @@ export async function importExternalZip(ctx: LauncherActionContext) {
     await ctx.load();
     ctx.setMessage("External ZIP imported.");
   }, "Could not import ZIP");
+}
+
+export async function runHealthCheck(setHealthItems: (items: HealthCheckItem[]) => void) {
+  setHealthItems(await invoke<HealthCheckItem[]>("run_health_check"));
+}
+
+export async function exportDiagnostics(ctx: LauncherActionContext) {
+  const selected = await save({
+    title: "Export diagnostics",
+    defaultPath: "oppw4-launcher-diagnostics.zip",
+    filters: [{ name: "ZIP archive", extensions: ["zip"] }]
+  });
+  if (typeof selected !== "string") return;
+  await ctx.runBusy(async () => {
+    await invoke("export_diagnostics", { input: { path: selected } });
+    ctx.setMessage("Diagnostics exported.");
+  }, "Could not export diagnostics");
 }

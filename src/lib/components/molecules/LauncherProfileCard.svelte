@@ -1,12 +1,8 @@
 <script lang="ts">
   import ChevronIcon from "$lib/components/atoms/ChevronIcon.svelte";
   import Button from "$lib/components/ui/Button.svelte";
-
-  type ModProfile = {
-    id: string;
-    name: string;
-    enabledModKeys: string[];
-  };
+  import { profileColor, profileIcon } from "$lib/components/launcher/helpers";
+  import type { ModProfile } from "$lib/components/launcher/types";
 
   type InstalledMod = {
     name: string;
@@ -26,6 +22,8 @@
   $: images = previewMods.filter((mod) => mod.coverDataUrl);
   $: if (activeImage >= images.length) activeImage = 0;
   $: preview = images[activeImage];
+  $: icon = profileIcon(profile);
+  $: color = profileColor(profile);
 
   function previousImage() {
     if (images.length < 2) return;
@@ -43,9 +41,9 @@
     {#if preview?.coverDataUrl}
       <img class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.035]" src={preview.coverDataUrl} alt={preview.name} />
     {:else}
-      <div class="absolute inset-0 bg-[linear-gradient(135deg,hsl(var(--primary)/.22),hsl(var(--accent)/.18))]"></div>
-      <div class="absolute left-5 top-5 rounded-md border border-white/30 bg-white/12 px-4 py-3 text-4xl font-black text-white shadow-xl backdrop-blur">
-        {profile.name.slice(0, 2).toUpperCase()}
+      <div class={`absolute inset-0 bg-gradient-to-br ${color.className}`}></div>
+      <div class={`absolute left-5 top-5 grid h-16 w-16 place-items-center rounded-md border bg-white/12 text-4xl font-black shadow-xl backdrop-blur ${color.className}`}>
+        {icon.glyph}
       </div>
     {/if}
 
@@ -75,7 +73,7 @@
     <div class="min-w-0">
       <p class="truncate text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">Preset / {profile.enabledModKeys.length} linked mod{profile.enabledModKeys.length === 1 ? "" : "s"}</p>
       <button class="mt-1 block text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" type="button" on:click={() => onOpen(profile)}>
-        <h3 class="line-clamp-2 text-2xl font-black leading-tight text-foreground">{profile.name}</h3>
+        <h3 class="line-clamp-2 text-2xl font-black leading-tight text-foreground"><span class="mr-2 text-primary">{icon.glyph}</span>{profile.name}</h3>
       </button>
     </div>
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import Button from "$lib/components/ui/Button.svelte";
-  import { modInitials, modPageHref } from "./helpers";
+  import { modInitials, modPageHref, profileIcon } from "./helpers";
   import type { InstalledMod, ModProfile, UpdateSkinMap } from "./types";
 
   export let profile: ModProfile;
@@ -10,6 +10,8 @@
   export let onApply: (profile: ModProfile) => void = () => {};
   export let onClose: () => void = () => {};
   export let onToggleMod: (mod: InstalledMod) => void = () => {};
+
+  $: icon = profileIcon(profile);
 </script>
 
 <div class="fixed inset-0 z-50 grid place-items-center p-4">
@@ -18,7 +20,7 @@
     <div class="flex flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p class="text-xs font-black uppercase tracking-[0.18em] text-primary">Profile</p>
-        <h2 class="text-2xl font-black">{profile.name}</h2>
+        <h2 class="text-2xl font-black"><span class="mr-2 text-primary">{icon.glyph}</span>{profile.name}</h2>
         <p class="mt-1 text-sm text-muted-foreground">{mods.length}/{profile.enabledModKeys.length} linked mods available locally.</p>
       </div>
       <div class="flex flex-wrap gap-2">

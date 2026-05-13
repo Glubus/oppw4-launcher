@@ -1,9 +1,11 @@
 mod config;
+mod diagnostics;
 mod installer;
 mod steam;
 
 use base64::{engine::general_purpose, Engine as _};
 use config::{load_config as read_config, save_config as write_config, LaunchMode, LauncherConfig, STEAM_APP_ID};
+use diagnostics::{export_diagnostics_zip, health_item, latest_loader_log, HealthCheckItem};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{fs, io::{Cursor, Read, Seek, Write}, path::{Path, PathBuf}, process::Command};
@@ -26,7 +28,7 @@ struct LauncherState {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct InstalledMod {
+pub(crate) struct InstalledMod {
   name: String,
   kind: String,
   path: String,
@@ -39,6 +41,8 @@ struct InstalledMod {
   character_name: Option<String>,
   character_slug: Option<String>,
   mod_type: Option<String>,
+  dependencies: Vec<String>,
+  changelog: Option<String>,
   cover_data_url: Option<String>,
 }
 
@@ -52,6 +56,8 @@ struct LocalModMetadata {
   character_name: Option<String>,
   character_slug: Option<String>,
   mod_type: Option<String>,
+  dependencies: Vec<String>,
+  changelog: Option<String>,
   cover_data_url: Option<String>,
 }
 
@@ -107,6 +113,12 @@ struct InstalledModLookupRequest {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RevealModRequest {
+  path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExportDiagnosticsRequest {
   path: String,
 }
 
@@ -196,6 +208,20 @@ fn check_modloader_integrity() -> Result<LauncherConfig, String> {
   installer::refresh_latest_modloader_hash(&mut config, true)?;
   write_config(&config)?;
   Ok(config)
+}
+
+#[tauri::command]
+fn run_health_check() -> Result<Vec<HealthCheckItem>, String> {
+  let config = read_config()?;
+  Ok(build_health_check(&config))
+}
+
+#[tauri::command]
+fn export_diagnostics(input: ExportDiagnosticsRequest) -> Result<(), String> {
+  let config = read_config()?;
+  let mods = installed_mods(&config);
+  let health = build_health_check(&config);
+  export_diagnostics_zip(PathBuf::from(input.path), &config, &mods, &health)
 }
 
 #[tauri::command]
@@ -416,6 +442,8 @@ fn install_hosted_mod(input: InstallHostedModRequest) -> Result<InstallHostedMod
         character_name: downloaded_metadata.character_name,
         character_slug: downloaded_metadata.character_slug,
         mod_type: downloaded_metadata.mod_type,
+        dependencies: downloaded_metadata.dependencies,
+        changelog: downloaded_metadata.changelog,
         cover_data_url: downloaded_metadata.cover_data_url,
       },
       already_up_to_date: false,
@@ -445,6 +473,8 @@ fn install_hosted_mod(input: InstallHostedModRequest) -> Result<InstallHostedMod
       character_name: downloaded_metadata.character_name,
       character_slug: downloaded_metadata.character_slug,
       mod_type: downloaded_metadata.mod_type,
+      dependencies: downloaded_metadata.dependencies,
+      changelog: downloaded_metadata.changelog,
       cover_data_url: downloaded_metadata.cover_data_url,
     },
     already_up_to_date: false,
@@ -530,6 +560,99 @@ fn modloader_status(config: &LauncherConfig, local_hash: Option<&str>) -> String
   "Installed".to_string()
 }
 
+fn build_health_check(config: &LauncherConfig) -> Vec<HealthCheckItem> {
+  let mut items = Vec::new();
+  let Some(game_folder) = &config.game_folder else {
+    items.push(health_item("error", "Game folder", "No game folder selected."));
+    return items;
+  };
+  let game_folder = PathBuf::from(game_folder);
+  if game_folder.is_dir() {
+    items.push(health_item("ok", "Game folder", &format!("Using {}.", game_folder.display())));
+  } else {
+    items.push(health_item("error", "Game folder", "Selected game folder does not exist."));
+    return items;
+  }
+
+  let local_hash = installer::installed_dinput8_sha256(config).ok().flatten();
+  items.push(match modloader_status(config, local_hash.as_deref()).as_str() {
+    "Installed" => health_item("ok", "Patcher", "dinput8.dll is installed and matches the tracked hash."),
+    "Update available" => health_item("warn", "Patcher", "A newer patcher asset is available on GitHub."),
+    "Modified dinput8.dll" => health_item("warn", "Patcher", "The local dinput8.dll does not match the tracked install hash."),
+    "Detected unmanaged dinput8.dll" => health_item("warn", "Patcher", "A dinput8.dll exists, but it was not installed by this launcher."),
+    "Missing installed dinput8.dll" => health_item("error", "Patcher", "The launcher tracks an install, but dinput8.dll is missing."),
+    status => health_item("error", "Patcher", status),
+  });
+
+  let mods_dir = game_folder.join("mods");
+  if mods_dir.is_dir() {
+    items.push(health_item("ok", "Mods folder", &format!("Found {}.", mods_dir.display())));
+  } else {
+    items.push(health_item("warn", "Mods folder", "No mods folder found yet."));
+  }
+
+  let mods = installed_mods(config);
+  if mods.is_empty() {
+    items.push(health_item("warn", "Installed mods", "No local mods were detected."));
+  } else {
+    let enabled = mods.iter().filter(|mod_info| mod_info.enabled).count();
+    items.push(health_item("ok", "Installed mods", &format!("{enabled}/{} mods enabled.", mods.len())));
+  }
+
+  let missing_metadata = mods.iter().filter(|mod_info| mod_info.kind == "zip" && mod_info.mod_id.is_none() && mod_info.slug.is_none()).count();
+  if missing_metadata > 0 {
+    items.push(health_item("warn", "Metadata", &format!("{missing_metadata} ZIP mod(s) have no usable metadata identity.")));
+  } else if !mods.is_empty() {
+    items.push(health_item("ok", "Metadata", "Installed ZIP mods have usable metadata."));
+  }
+
+  let installed_keys = installed_dependency_keys(&mods);
+  let mut missing_dependencies = Vec::new();
+  for mod_info in &mods {
+    if !mod_info.enabled {
+      continue;
+    }
+    for dependency in &mod_info.dependencies {
+      if !installed_keys.contains(&dependency.to_lowercase()) {
+        missing_dependencies.push(format!("{} needs {}", mod_info.name, dependency));
+      }
+    }
+  }
+  if missing_dependencies.is_empty() {
+    items.push(health_item("ok", "Dependencies", "No missing enabled mod dependencies detected."));
+  } else {
+    items.push(health_item("error", "Dependencies", &missing_dependencies.join("; ")));
+  }
+
+  if let Some(log_path) = latest_loader_log(config) {
+    items.push(health_item("ok", "Loader log", &format!("Latest log: {}.", log_path.display())));
+  } else {
+    items.push(health_item("warn", "Loader log", "No loader log found in mods/_oppw4/logs."));
+  }
+
+  items
+}
+
+fn installed_dependency_keys(mods: &[InstalledMod]) -> std::collections::HashSet<String> {
+  let mut keys = std::collections::HashSet::new();
+  for mod_info in mods {
+    keys.insert(mod_info.mod_key.to_lowercase());
+    if let Some(value) = &mod_info.mod_id {
+      keys.insert(value.to_lowercase());
+      keys.insert(format!("id:{value}").to_lowercase());
+    }
+    if let Some(value) = &mod_info.slug {
+      keys.insert(value.to_lowercase());
+      keys.insert(format!("slug:{value}").to_lowercase());
+    }
+    if let Some(value) = &mod_info.source_url {
+      keys.insert(value.to_lowercase());
+      keys.insert(format!("source:{value}").to_lowercase());
+    }
+  }
+  keys
+}
+
 fn installed_mods(config: &LauncherConfig) -> Vec<InstalledMod> {
   let Some(game_folder) = &config.game_folder else {
     return Vec::new();
@@ -611,6 +734,8 @@ fn installed_mod_from_parts(path: PathBuf, display_name: String, kind: String, e
     character_name: metadata.character_name,
     character_slug: metadata.character_slug,
     mod_type: metadata.mod_type,
+    dependencies: metadata.dependencies,
+    changelog: metadata.changelog,
     cover_data_url: metadata.cover_data_url,
   })
 }
@@ -659,6 +784,8 @@ fn read_mod_metadata_from_archive<R: Read + Seek>(archive: &mut ZipArchive<R>) -
     metadata.character_name = toml_value(&content, "character_name");
     metadata.character_slug = toml_value(&content, "character_slug");
     metadata.mod_type = toml_value(&content, "mod_type");
+    metadata.dependencies = toml_array(&content, "dependencies");
+    metadata.changelog = toml_value(&content, "changelog");
     if let Some(cover_path) = toml_value(&content, "cover").filter(|value| value.starts_with(".metadata/")) {
       metadata.cover_data_url = zip_image_data_url(archive, &cover_path).ok();
     }
@@ -693,6 +820,18 @@ fn toml_value(content: &str, key: &str) -> Option<String> {
       Some(value.to_string()).filter(|value| !value.trim().is_empty())
     }
   })
+}
+
+fn toml_array(content: &str, key: &str) -> Vec<String> {
+  let prefix = format!("{key} = ");
+  content
+    .lines()
+    .find_map(|line| line.trim().strip_prefix(&prefix))
+    .and_then(|value| serde_json::from_str::<Vec<String>>(value.trim()).ok())
+    .unwrap_or_default()
+    .into_iter()
+    .filter(|value| !value.trim().is_empty())
+    .collect()
 }
 
 fn zip_image_data_url<R: Read + Seek>(archive: &mut ZipArchive<R>, path: &str) -> Result<String, String> {
@@ -861,6 +1000,8 @@ pub fn run() {
       install_modloader,
       restore_modloader,
       check_modloader_integrity,
+      run_health_check,
+      export_diagnostics,
       set_mod_enabled,
       import_external_zip,
       apply_mod_profile,
@@ -977,7 +1118,7 @@ mod tests {
       let mut writer = ZipWriter::new(file);
       let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
       writer.start_file("metadata.toml", options).unwrap();
-      writer.write_all(b"title = \"Casual Law\"\nversion = \"1.0.0\"\nmod_id = \"casual-law\"\ncharacter_name = \"Trafalgar Law\"\ncover = \".metadata/cover.png\"\n").unwrap();
+      writer.write_all(b"title = \"Casual Law\"\nversion = \"1.0.0\"\nmod_id = \"casual-law\"\ncharacter_name = \"Trafalgar Law\"\ndependencies = [\"base-law\"]\nchangelog = \"Initial release\"\ncover = \".metadata/cover.png\"\n").unwrap();
       writer.start_file(".metadata/cover.png", options).unwrap();
       writer.write_all(b"png").unwrap();
       writer.finish().unwrap();
@@ -994,6 +1135,8 @@ mod tests {
     assert_eq!(mods[0].version.as_deref(), Some("1.0.0"));
     assert_eq!(mods[0].mod_key, "id:casual-law");
     assert_eq!(mods[0].character_name.as_deref(), Some("Trafalgar Law"));
+    assert_eq!(mods[0].dependencies, vec!["base-law"]);
+    assert_eq!(mods[0].changelog.as_deref(), Some("Initial release"));
     assert!(mods[0].cover_data_url.as_deref().unwrap_or("").starts_with("data:image/png;base64,"));
   }
 }

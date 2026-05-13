@@ -2,6 +2,7 @@ import type { Skin } from "$lib/api";
 
 export type LaunchMode = "steam" | "executable";
 export type ActiveLauncherPanel = "mods" | "profiles" | "settings" | "changelog";
+export type HealthLevel = "ok" | "warn" | "error";
 
 export type InstalledFile = {
   relativePath: string;
@@ -11,6 +12,8 @@ export type InstalledFile = {
 export type ModProfile = {
   id: string;
   name: string;
+  icon: string;
+  color: string;
   enabledModKeys: string[];
 };
 
@@ -70,7 +73,15 @@ export type InstalledMod = {
   characterName?: string | null;
   characterSlug?: string | null;
   modType?: string | null;
+  dependencies: string[];
+  changelog?: string | null;
   coverDataUrl?: string | null;
+};
+
+export type HealthCheckItem = {
+  level: HealthLevel;
+  title: string;
+  detail: string;
 };
 
 export type LauncherState = {

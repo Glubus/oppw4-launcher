@@ -2,16 +2,21 @@
   import Button from "$lib/components/ui/Button.svelte";
   import Input from "$lib/components/ui/Input.svelte";
   import Label from "$lib/components/ui/Label.svelte";
-  import type { DetectedGame, LaunchMode, LauncherConfig } from "./types";
+  import LauncherHealthPanel from "./LauncherHealthPanel.svelte";
+  import type { DetectedGame, HealthCheckItem, LaunchMode, LauncherConfig } from "./types";
 
   export let config: LauncherConfig;
   export let detectedGame: DetectedGame | null = null;
   export let hasGameFolder = false;
+  export let healthItems: HealthCheckItem[] = [];
+  export let busy = false;
   export let onUseDetected: () => void = () => {};
   export let onSetLaunchMode: (mode: LaunchMode) => void = () => {};
   export let onChooseGameFolder: () => void = () => {};
   export let onChooseExecutable: () => void = () => {};
   export let onRepositoryChange: () => void = () => {};
+  export let onRunHealth: () => void = () => {};
+  export let onExportDiagnostics: () => void = () => {};
 </script>
 
 <div class="grid gap-5 p-2 pt-5">
@@ -69,4 +74,6 @@
     Patcher GitHub repository
     <Input bind:value={config.modloaderRepo} on:change={onRepositoryChange} placeholder="owner/repository" />
   </Label>
+
+  <LauncherHealthPanel items={healthItems} {busy} onRun={onRunHealth} onExport={onExportDiagnostics} />
 </div>

@@ -66,3 +66,27 @@ export function profileHasMod(profile: ModProfile, mod: InstalledMod) {
 export function profilePreviewMods(profile: ModProfile, mods: InstalledMod[]) {
   return mods.filter((mod) => profile.enabledModKeys.includes(mod.modKey) && mod.coverDataUrl);
 }
+
+export const profileIcons = [
+  { value: "sparkles", label: "Sparkles", glyph: "✦" },
+  { value: "bolt", label: "Bolt", glyph: "↯" },
+  { value: "flame", label: "Flame", glyph: "◆" },
+  { value: "test", label: "Test", glyph: "T" },
+  { value: "clean", label: "Clean", glyph: "✓" }
+];
+
+export const profileColors = [
+  { value: "violet", label: "Violet", className: "from-violet-500/35 to-fuchsia-500/20 border-violet-300/35 text-violet-50" },
+  { value: "cyan", label: "Cyan", className: "from-cyan-500/35 to-sky-500/20 border-cyan-300/35 text-cyan-50" },
+  { value: "emerald", label: "Emerald", className: "from-emerald-500/35 to-lime-500/20 border-emerald-300/35 text-emerald-50" },
+  { value: "amber", label: "Amber", className: "from-amber-500/35 to-orange-500/20 border-amber-300/35 text-amber-50" },
+  { value: "rose", label: "Rose", className: "from-rose-500/35 to-red-500/20 border-rose-300/35 text-rose-50" }
+];
+
+export function profileIcon(profile: ModProfile) {
+  return profileIcons.find((item) => item.value === profile.icon) ?? profileIcons[0];
+}
+
+export function profileColor(profile: ModProfile) {
+  return profileColors.find((item) => item.value === profile.color) ?? profileColors[0];
+}
