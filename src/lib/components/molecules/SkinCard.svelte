@@ -85,6 +85,10 @@
     if (hostedFile) void installHostedMod(hostedFile);
   }
 
+  function fileLabel(name: string) {
+    return name.replace(/\.zip$/i, "");
+  }
+
   async function installHostedMod(file: { id: string; fileName: string }) {
     if (installing) return;
     showFileMenu = false;
@@ -95,6 +99,27 @@
       toastStore.push(result.alreadyUpToDate ? "Already up to date." : `${skin.title} installed.`, "success");
     } catch (err) {
       toastStore.push(err instanceof Error ? err.message : typeof err === "string" ? err : "Could not install mod.", "error");
+    } finally {
+      installing = false;
+    }
+  }
+
+  async function installAllHostedMods() {
+    if (installing) return;
+    showFileMenu = false;
+    installing = true;
+    let installed = 0;
+    let alreadyCurrent = 0;
+    try {
+      for (const file of hostedFiles) {
+        const result = await invoke<InstallHostedModResult>("install_hosted_mod", { input: { fileId: file.id, fileName: file.fileName } });
+        installedMod = result.modInfo;
+        if (result.alreadyUpToDate) alreadyCurrent += 1;
+        else installed += 1;
+      }
+      toastStore.push(installed ? `${installed} file${installed === 1 ? "" : "s"} installed.` : `${alreadyCurrent} file${alreadyCurrent === 1 ? "" : "s"} already up to date.`, "success");
+    } catch (err) {
+      toastStore.push(err instanceof Error ? err.message : typeof err === "string" ? err : "Could not install all files.", "error");
     } finally {
       installing = false;
     }
@@ -204,9 +229,13 @@
           </button>
           {#if showFileMenu && hostedFiles.length > 1}
             <div class="pointer-events-auto absolute bottom-12 right-0 z-50 grid w-64 gap-1 rounded-lg border border-white/12 bg-popover/95 p-2 text-popover-foreground shadow-2xl backdrop-blur-md">
+              <button class="flex min-h-9 w-full items-center justify-start rounded-md px-2 text-left text-sm font-black text-primary hover:bg-white/10" type="button" on:click={installAllHostedMods}>
+                All
+              </button>
+              <div class="my-1 h-px bg-white/10"></div>
               {#each hostedFiles as file}
                 <button class="flex min-h-9 w-full items-center justify-start rounded-md px-2 text-left text-sm font-bold hover:bg-white/10" type="button" on:click={() => installHostedMod(file)}>
-                  <span class="min-w-0 truncate">{file.fileName}</span>
+                  <span class="min-w-0 truncate">{fileLabel(file.fileName)}</span>
                 </button>
               {/each}
             </div>
