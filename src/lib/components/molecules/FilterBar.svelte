@@ -10,6 +10,21 @@
   export let modType = "";
   export let sort = "recent";
   export let onChange: () => void;
+
+  function updateModType(value: string) {
+    modType = value;
+    onChange();
+  }
+
+  function updateCharacter(value: string) {
+    character = value;
+    onChange();
+  }
+
+  function updateSort(value: string) {
+    sort = value;
+    onChange();
+  }
 </script>
 
 <section class="relative z-30 grid gap-3 overflow-visible rounded-lg border border-white/10 bg-card/86 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-md lg:grid-cols-[1fr_260px_210px_180px]">
@@ -18,9 +33,9 @@
     <input bind:value={query} on:input={onChange} placeholder="Search skin, creator, tag..." />
   </label>
 
-  <ModTypeCombobox bind:value={modType} {onChange} />
+  <ModTypeCombobox value={modType} onChange={updateModType} />
 
-  <CharacterCombobox {characters} bind:value={character} placeholder="All characters" valueKey="slug" includeAll={true} {onChange} />
+  <CharacterCombobox {characters} value={character} placeholder="All characters" valueKey="slug" includeAll={true} onChange={updateCharacter} />
 
-  <SortCombobox bind:value={sort} {onChange} />
+  <SortCombobox value={sort} onChange={updateSort} />
 </section>

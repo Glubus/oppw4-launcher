@@ -2,7 +2,7 @@
   import { MOD_TYPE_OPTIONS } from "$lib/api";
 
   export let value = "";
-  export let onChange: () => void = () => {};
+  export let onChange: (value: string) => void = () => {};
 
   let details: HTMLDetailsElement;
 
@@ -11,7 +11,7 @@
   function select(next: string) {
     value = next;
     if (details) details.open = false;
-    onChange();
+    onChange(next);
   }
 </script>
 

@@ -8,6 +8,7 @@
   export let updateSkins: UpdateSkinMap = {};
   export let busy = false;
   export let onToggle: (mod: InstalledMod) => void = () => {};
+  export let onRemove: (mod: InstalledMod) => void = () => {};
   export let onAddToProfile: (profile: ModProfile, mod: InstalledMod) => void = () => {};
 
   $: href = modPageHref(mod);
@@ -88,6 +89,7 @@
       <Button variant={mod.enabled ? "destructive" : "default"} disabled={busy} on:click={() => onToggle(mod)}>
         {mod.enabled ? "Disable" : "Enable"}
       </Button>
+      <Button class="col-span-2" variant="outline" disabled={busy} on:click={() => onRemove(mod)}>Remove</Button>
     </div>
   </div>
 </article>

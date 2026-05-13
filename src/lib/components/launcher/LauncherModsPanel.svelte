@@ -18,6 +18,7 @@
   export let onImportZip: () => void = () => {};
   export let onUpdateAll: () => void = () => {};
   export let onToggleMod: (mod: InstalledMod) => void = () => {};
+  export let onRemoveMod: (mod: InstalledMod) => void = () => {};
   export let onAddToProfile: (profile: ModProfile, mod: InstalledMod) => void = () => {};
 
   const statusOptions = [
@@ -59,7 +60,17 @@
     if (statusDetails) statusDetails.open = false;
   }
 
-  function noop() {}
+  function selectModType(value: string) {
+    modType = value;
+  }
+
+  function selectCharacter(value: string) {
+    modCharacter = value;
+  }
+
+  function selectSort(value: string) {
+    modSort = value;
+  }
 </script>
 
 <div class="p-2 pt-5">
@@ -84,8 +95,8 @@
       <span class="font-black text-primary">⌕</span>
       <input bind:value={modSearch} placeholder="Search mod, character, version..." />
     </label>
-    <ModTypeCombobox bind:value={modType} onChange={noop} />
-    <CharacterCombobox characters={installedCharacters} bind:value={modCharacter} placeholder="All characters" valueKey="slug" includeAll={true} onChange={noop} />
+    <ModTypeCombobox value={modType} onChange={selectModType} />
+    <CharacterCombobox characters={installedCharacters} value={modCharacter} placeholder="All characters" valueKey="slug" includeAll={true} onChange={selectCharacter} />
 
     <details class="relative z-40 w-full" bind:this={statusDetails}>
       <summary class="flex h-10 w-full cursor-pointer list-none items-center justify-between rounded-md border border-white/12 bg-background/55 px-3 text-sm font-medium text-foreground shadow-sm outline-none transition-colors hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-ring">
@@ -101,7 +112,7 @@
       </div>
     </details>
 
-    <SortCombobox bind:value={modSort} onChange={noop} />
+    <SortCombobox value={modSort} onChange={selectSort} />
     <Button variant="outline" type="button" on:click={resetInstalledFilters}>Reset</Button>
   </section>
 
@@ -110,7 +121,7 @@
   {:else if filteredInstalledMods.length}
     <section class="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
       {#each filteredInstalledMods as mod}
-        <InstalledModCard {mod} {profiles} {updateSkins} {busy} onToggle={onToggleMod} onAddToProfile={onAddToProfile} />
+        <InstalledModCard {mod} {profiles} {updateSkins} {busy} onToggle={onToggleMod} onRemove={onRemoveMod} onAddToProfile={onAddToProfile} />
       {/each}
     </section>
   {:else}

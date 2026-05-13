@@ -71,6 +71,16 @@ export async function toggleInstalledMod(ctx: LauncherActionContext, mod: Instal
   }, "Could not update mod state");
 }
 
+export async function removeInstalledMod(ctx: LauncherActionContext, mod: InstalledMod) {
+  const confirmed = window.confirm(`Remove "${mod.name}" from your mods folder?`);
+  if (!confirmed) return;
+  await ctx.runBusy(async () => {
+    await invoke("remove_installed_mod", { input: { path: mod.path } });
+    await ctx.load();
+    ctx.setMessage(`${mod.name} removed.`);
+  }, "Could not remove mod");
+}
+
 export async function importExternalZip(ctx: LauncherActionContext) {
   const selected = await open({ directory: false, multiple: false, title: "Import external mod ZIP", filters: [{ name: "ZIP archive", extensions: ["zip"] }] });
   if (typeof selected !== "string") return;

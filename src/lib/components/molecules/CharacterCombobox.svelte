@@ -6,7 +6,7 @@
   export let placeholder = "All characters";
   export let valueKey: "slug" | "id" = "slug";
   export let includeAll = true;
-  export let onChange: () => void = () => {};
+  export let onChange: (value: string) => void = () => {};
 
   let search = "";
   let details: HTMLDetailsElement;
@@ -22,7 +22,7 @@
     value = next;
     search = "";
     if (details) details.open = false;
-    onChange();
+    onChange(next);
   }
 </script>
 

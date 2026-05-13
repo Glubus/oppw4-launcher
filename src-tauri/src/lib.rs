@@ -1,13 +1,13 @@
+mod api;
 mod config;
 mod diagnostics;
 mod installer;
 mod steam;
 
 use base64::{engine::general_purpose, Engine as _};
-use config::{app_data_dir, load_config as read_config, save_config as write_config, LaunchMode, LauncherConfig, STEAM_APP_ID};
+use config::{load_config as read_config, save_config as write_config, LaunchMode, LauncherConfig, STEAM_APP_ID};
 use diagnostics::{export_diagnostics_zip, health_item, latest_loader_log, HealthCheckItem};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::{fs, io::{Cursor, Read, Seek, Write}, path::{Path, PathBuf}, process::Command};
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipArchive, ZipWriter};
 
@@ -82,15 +82,6 @@ struct ApplyProfileRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ApiRequest {
-  method: String,
-  path: String,
-  body: Option<String>,
-  token: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct ApplyMetadataRequest {
   skin_id: String,
   zip_path: String,
@@ -115,6 +106,12 @@ struct InstalledModLookupRequest {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RevealModRequest {
+  path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RemoveModRequest {
   path: String,
 }
 
@@ -326,60 +323,6 @@ fn set_mod_path_enabled(config: &LauncherConfig, mod_path: &str, enabled: bool) 
 }
 
 #[tauri::command]
-fn api_request(input: ApiRequest) -> Result<Value, String> {
-  let client = reqwest::blocking::Client::new();
-  let method = input.method.parse().map_err(|err| format!("Invalid API method: {err}"))?;
-  let url = if input.path.starts_with("http://") || input.path.starts_with("https://") {
-    input.path
-  } else {
-    format!("{API_BASE}{}", input.path)
-  };
-  let mut request = client
-    .request(method, url)
-    .header("accept", "application/json")
-    .header("user-agent", "oppw4-launcher");
-
-  if let Ok(viewer_id) = launcher_viewer_id() {
-    request = request.header("cookie", format!("oppw4_viewer={viewer_id}"));
-  }
-  if let Some(token) = input.token.filter(|value| !value.trim().is_empty()) {
-    request = request.bearer_auth(token);
-  }
-  if let Some(body) = input.body {
-    request = request.header("content-type", "application/json").body(body);
-  }
-
-  let response = request.send().map_err(|err| format!("API request failed: {err}"))?;
-  let status = response.status();
-  let text = response.text().map_err(|err| format!("Could not read API response: {err}"))?;
-  let json = serde_json::from_str::<Value>(&text).unwrap_or_else(|_| serde_json::json!({ "error": text }));
-  if !status.is_success() {
-    let message = json
-      .get("error")
-      .and_then(Value::as_str)
-      .unwrap_or("API request failed");
-    return Err(message.to_string());
-  }
-  Ok(json)
-}
-
-fn launcher_viewer_id() -> Result<String, String> {
-  let path = app_data_dir()?.join("viewer-id");
-  if let Ok(existing) = fs::read_to_string(&path) {
-    let existing = existing.trim();
-    if !existing.is_empty() {
-      return Ok(existing.to_string());
-    }
-  }
-  if let Some(parent) = path.parent() {
-    fs::create_dir_all(parent).map_err(|err| format!("Could not create app data directory: {err}"))?;
-  }
-  let value = format!("launcher-{}-{}", now_label(), std::process::id());
-  fs::write(&path, &value).map_err(|err| format!("Could not write launcher viewer id: {err}"))?;
-  Ok(value)
-}
-
-#[tauri::command]
 fn apply_metadata_to_zip(input: ApplyMetadataRequest) -> Result<(), String> {
   let target_path = PathBuf::from(input.zip_path);
   if !target_path.exists() {
@@ -515,6 +458,22 @@ fn installed_mod_for_skin(input: InstalledModLookupRequest) -> Result<Option<Ins
 
 #[tauri::command]
 fn reveal_mod_in_folder(input: RevealModRequest) -> Result<(), String> {
+  let path = checked_mod_path(input.path)?;
+  reveal_path(&path)
+}
+
+#[tauri::command]
+fn remove_installed_mod(input: RemoveModRequest) -> Result<(), String> {
+  let path = checked_mod_path(input.path)?;
+  if path.is_dir() {
+    fs::remove_dir_all(&path).map_err(|err| format!("Could not remove mod folder: {err}"))?;
+  } else {
+    fs::remove_file(&path).map_err(|err| format!("Could not remove mod file: {err}"))?;
+  }
+  Ok(())
+}
+
+fn checked_mod_path(path: String) -> Result<PathBuf, String> {
   let config = read_config()?;
   let game_folder = config
     .game_folder
@@ -523,7 +482,7 @@ fn reveal_mod_in_folder(input: RevealModRequest) -> Result<(), String> {
   let mods_dir = mods_dir
     .canonicalize()
     .map_err(|_| "Mods folder does not exist.".to_string())?;
-  let path = PathBuf::from(input.path);
+  let path = PathBuf::from(path);
   if !path.exists() {
     return Err("Mod path does not exist.".to_string());
   }
@@ -533,8 +492,7 @@ fn reveal_mod_in_folder(input: RevealModRequest) -> Result<(), String> {
   if !path.starts_with(&mods_dir) || path.parent() != Some(mods_dir.as_path()) {
     return Err("Mod must be inside the configured mods folder.".to_string());
   }
-
-  reveal_path(&path)
+  Ok(path)
 }
 
 fn open_steam_uri() -> Result<(), String> {
@@ -1032,7 +990,8 @@ pub fn run() {
       install_hosted_mod,
       installed_mod_for_skin,
       reveal_mod_in_folder,
-      api_request
+      remove_installed_mod,
+      api::api_request
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

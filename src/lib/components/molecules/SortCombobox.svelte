@@ -1,6 +1,6 @@
 <script lang="ts">
   export let value = "recent";
-  export let onChange: () => void = () => {};
+  export let onChange: (value: string) => void = () => {};
 
   let details: HTMLDetailsElement;
 
@@ -15,7 +15,7 @@
   function select(next: string) {
     value = next;
     if (details) details.open = false;
-    onChange();
+    onChange(next);
   }
 </script>
 
