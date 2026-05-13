@@ -101,6 +101,8 @@ struct ApplyMetadataRequest {
 struct InstallHostedModRequest {
   file_id: String,
   file_name: String,
+  #[serde(default)]
+  install_as_new: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -419,35 +421,37 @@ fn install_hosted_mod(input: InstallHostedModRequest) -> Result<InstallHostedMod
   }
 
   let downloaded_metadata = read_mod_metadata_from_bytes(bytes.as_ref()).unwrap_or_default();
-  if let Some(existing) = installed_mods(&config).into_iter().find(|mod_info| same_mod_version(mod_info, &downloaded_metadata)) {
-    return Ok(InstallHostedModResult {
-      mod_info: existing,
-      already_up_to_date: true,
-    });
-  }
-  if let Some(existing) = installed_mods(&config).into_iter().find(|mod_info| same_mod_identity(mod_info, &downloaded_metadata)) {
-    fs::write(&existing.path, bytes).map_err(|err| format!("Could not update mod ZIP: {err}"))?;
-    let mod_key = mod_key_for(&input.file_name, &downloaded_metadata);
-    return Ok(InstallHostedModResult {
-      mod_info: InstalledMod {
-        name: downloaded_metadata.title.unwrap_or(existing.name),
-        kind: existing.kind,
-        path: existing.path,
-        mod_key,
-        enabled: existing.enabled,
-        mod_id: downloaded_metadata.mod_id,
-        version: downloaded_metadata.version,
-        source_url: downloaded_metadata.source_url,
-        slug: downloaded_metadata.slug,
-        character_name: downloaded_metadata.character_name,
-        character_slug: downloaded_metadata.character_slug,
-        mod_type: downloaded_metadata.mod_type,
-        dependencies: downloaded_metadata.dependencies,
-        changelog: downloaded_metadata.changelog,
-        cover_data_url: downloaded_metadata.cover_data_url,
-      },
-      already_up_to_date: false,
-    });
+  if !input.install_as_new {
+    if let Some(existing) = installed_mods(&config).into_iter().find(|mod_info| same_mod_version(mod_info, &downloaded_metadata)) {
+      return Ok(InstallHostedModResult {
+        mod_info: existing,
+        already_up_to_date: true,
+      });
+    }
+    if let Some(existing) = installed_mods(&config).into_iter().find(|mod_info| same_mod_identity(mod_info, &downloaded_metadata)) {
+      fs::write(&existing.path, bytes).map_err(|err| format!("Could not update mod ZIP: {err}"))?;
+      let mod_key = mod_key_for(&input.file_name, &downloaded_metadata);
+      return Ok(InstallHostedModResult {
+        mod_info: InstalledMod {
+          name: downloaded_metadata.title.unwrap_or(existing.name),
+          kind: existing.kind,
+          path: existing.path,
+          mod_key,
+          enabled: existing.enabled,
+          mod_id: downloaded_metadata.mod_id,
+          version: downloaded_metadata.version,
+          source_url: downloaded_metadata.source_url,
+          slug: downloaded_metadata.slug,
+          character_name: downloaded_metadata.character_name,
+          character_slug: downloaded_metadata.character_slug,
+          mod_type: downloaded_metadata.mod_type,
+          dependencies: downloaded_metadata.dependencies,
+          changelog: downloaded_metadata.changelog,
+          cover_data_url: downloaded_metadata.cover_data_url,
+        },
+        already_up_to_date: false,
+      });
+    }
   }
 
   let target = available_mod_path(&mods_dir, &input.file_name);

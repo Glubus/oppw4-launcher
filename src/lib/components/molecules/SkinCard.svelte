@@ -112,7 +112,7 @@
     let alreadyCurrent = 0;
     try {
       for (const file of hostedFiles) {
-        const result = await invoke<InstallHostedModResult>("install_hosted_mod", { input: { fileId: file.id, fileName: file.fileName } });
+        const result = await invoke<InstallHostedModResult>("install_hosted_mod", { input: { fileId: file.id, fileName: file.fileName, installAsNew: true } });
         installedMod = result.modInfo;
         if (result.alreadyUpToDate) alreadyCurrent += 1;
         else installed += 1;
