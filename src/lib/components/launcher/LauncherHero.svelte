@@ -15,6 +15,8 @@
   export let onInstall: () => void = () => {};
   export let onLaunch: () => void = () => {};
   export let onCheck: () => void = () => {};
+
+  $: showStatus = modloaderStatus.toLowerCase() !== "installed";
 </script>
 
 <section class="flex flex-col gap-4 rounded-lg border border-white/10 bg-card/86 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-md md:flex-row md:items-end md:justify-between">
@@ -22,7 +24,7 @@
     <p class="text-xs font-black uppercase tracking-[0.22em] text-primary/90">Desktop launcher</p>
     <h1 class="mt-1 text-4xl font-black tracking-tight">Launch and manage mods</h1>
     <p class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-      Current: <span class="font-bold text-foreground">{currentRelease}</span>
+      Installed: <span class="font-bold text-foreground">{currentRelease}</span>
       {#if latestReleaseLabel}
         · Latest: <span class="font-bold text-foreground">{latestReleaseLabel}</span>
       {/if}
@@ -30,7 +32,9 @@
         · Released <span class="font-bold text-foreground">{latestReleaseDate}</span>
       {/if}
     </p>
-    <p class="mt-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">{modloaderStatus}</p>
+    {#if showStatus}
+      <p class="mt-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">{modloaderStatus}</p>
+    {/if}
   </div>
   <div class="flex flex-wrap gap-2">
     <Button variant="outline" size="lg" disabled={!isDesktop || busy || !hasGameFolder} on:click={onCheck}>Check patcher</Button>
