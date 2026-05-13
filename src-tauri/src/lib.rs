@@ -4,7 +4,7 @@ mod installer;
 mod steam;
 
 use base64::{engine::general_purpose, Engine as _};
-use config::{load_config as read_config, save_config as write_config, LaunchMode, LauncherConfig, STEAM_APP_ID};
+use config::{app_data_dir, load_config as read_config, save_config as write_config, LaunchMode, LauncherConfig, STEAM_APP_ID};
 use diagnostics::{export_diagnostics_zip, health_item, latest_loader_log, HealthCheckItem};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -339,6 +339,9 @@ fn api_request(input: ApiRequest) -> Result<Value, String> {
     .header("accept", "application/json")
     .header("user-agent", "oppw4-launcher");
 
+  if let Ok(viewer_id) = launcher_viewer_id() {
+    request = request.header("cookie", format!("oppw4_viewer={viewer_id}"));
+  }
   if let Some(token) = input.token.filter(|value| !value.trim().is_empty()) {
     request = request.bearer_auth(token);
   }
@@ -358,6 +361,22 @@ fn api_request(input: ApiRequest) -> Result<Value, String> {
     return Err(message.to_string());
   }
   Ok(json)
+}
+
+fn launcher_viewer_id() -> Result<String, String> {
+  let path = app_data_dir()?.join("viewer-id");
+  if let Ok(existing) = fs::read_to_string(&path) {
+    let existing = existing.trim();
+    if !existing.is_empty() {
+      return Ok(existing.to_string());
+    }
+  }
+  if let Some(parent) = path.parent() {
+    fs::create_dir_all(parent).map_err(|err| format!("Could not create app data directory: {err}"))?;
+  }
+  let value = format!("launcher-{}-{}", now_label(), std::process::id());
+  fs::write(&path, &value).map_err(|err| format!("Could not write launcher viewer id: {err}"))?;
+  Ok(value)
 }
 
 #[tauri::command]
