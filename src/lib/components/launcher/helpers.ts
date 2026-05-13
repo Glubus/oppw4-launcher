@@ -48,11 +48,15 @@ export function sortInstalledMods(mods: InstalledMod[], value: string) {
 export function localCharacters(mods: InstalledMod[]): Character[] {
   const bySlug = new Map<string, Character>();
   for (const mod of mods) {
-    const slug = mod.characterSlug || mod.characterName?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const slug = installedModCharacterSlug(mod);
     if (!slug || bySlug.has(slug)) continue;
     bySlug.set(slug, { id: slug, slug, displayName: mod.characterName || slug, isDlc: false, pack: "Installed" });
   }
   return [...bySlug.values()].sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+export function installedModCharacterSlug(mod: InstalledMod) {
+  return mod.characterSlug || mod.characterName?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "";
 }
 
 export function profileModCount(profile: ModProfile, mods: InstalledMod[]) {

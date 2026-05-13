@@ -4,7 +4,7 @@
   import SortCombobox from "$lib/components/molecules/SortCombobox.svelte";
   import Button from "$lib/components/ui/Button.svelte";
   import InstalledModCard from "./InstalledModCard.svelte";
-  import { localCharacters, sortInstalledMods } from "./helpers";
+  import { installedModCharacterSlug, localCharacters, sortInstalledMods } from "./helpers";
   import type { InstalledMod, ModProfile, UpdateSkinMap } from "./types";
 
   export let installedMods: InstalledMod[] = [];
@@ -36,14 +36,17 @@
   let statusDetails: HTMLDetailsElement;
 
   $: installedCharacters = localCharacters(installedMods);
-  $: filteredInstalledMods = sortInstalledMods(installedMods.filter(matchesModFilters), modSort);
+  $: filteredInstalledMods = sortInstalledMods(
+    installedMods.filter((mod) => matchesModFilters(mod, modSearch, modCharacter, modType, modStatus)),
+    modSort
+  );
 
-  function matchesModFilters(mod: InstalledMod) {
-    const query = modSearch.trim().toLowerCase();
+  function matchesModFilters(mod: InstalledMod, search: string, character: string, type: string, status: string) {
+    const query = search.trim().toLowerCase();
     const matchesQuery = !query || [mod.name, mod.version, mod.characterName, mod.characterSlug, mod.modType, mod.slug].some((part) => part?.toLowerCase().includes(query));
-    const matchesCharacter = !modCharacter || mod.characterSlug === modCharacter;
-    const matchesType = !modType || mod.modType === modType;
-    const matchesStatus = !modStatus || (modStatus === "enabled" ? mod.enabled : modStatus === "disabled" ? !mod.enabled : Boolean(updateSkins[mod.path]));
+    const matchesCharacter = !character || installedModCharacterSlug(mod) === character;
+    const matchesType = !type || mod.modType === type;
+    const matchesStatus = !status || (status === "enabled" ? mod.enabled : status === "disabled" ? !mod.enabled : Boolean(updateSkins[mod.path]));
     return matchesQuery && matchesCharacter && matchesType && matchesStatus;
   }
 
