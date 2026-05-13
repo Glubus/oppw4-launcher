@@ -1,6 +1,7 @@
 <script lang="ts">
   import Button from "$lib/components/ui/Button.svelte";
-  import { modInitials, modPageHref, profileIcon } from "./helpers";
+  import ProfileIcon from "./ProfileIcon.svelte";
+  import { modInitials, modPageHref, profileColor, profileColors, profileIcon, profileIcons } from "./helpers";
   import type { InstalledMod, ModProfile, UpdateSkinMap } from "./types";
 
   export let profile: ModProfile;
@@ -9,19 +10,54 @@
   export let busy = false;
   export let onApply: (profile: ModProfile) => void = () => {};
   export let onClose: () => void = () => {};
+  export let onStyle: (profile: ModProfile, icon: string, color: string) => void = () => {};
   export let onToggleMod: (mod: InstalledMod) => void = () => {};
 
   $: icon = profileIcon(profile);
+  $: color = profileColor(profile);
 </script>
 
 <div class="fixed inset-0 z-50 grid place-items-center p-4">
   <button class="absolute inset-0 bg-black/70 backdrop-blur-sm" type="button" aria-label="Close profile" on:click={onClose}></button>
   <div class="relative max-h-[86vh] w-full max-w-6xl overflow-hidden rounded-lg border border-white/12 bg-background shadow-2xl" role="dialog" aria-modal="true" aria-label={`${profile.name} profile`}>
     <div class="flex flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div>
+      <div class="min-w-0">
         <p class="text-xs font-black uppercase tracking-[0.18em] text-primary">Profile</p>
-        <h2 class="text-2xl font-black"><span class="mr-2 text-primary">{icon.glyph}</span>{profile.name}</h2>
+        <h2 class="flex min-w-0 items-center gap-2 text-2xl font-black">
+          <span
+            class="grid h-9 w-9 shrink-0 place-items-center rounded-md border"
+            style={`background: linear-gradient(135deg, ${color.from}, ${color.to}); border-color: ${color.border}; color: ${color.text};`}
+          >
+            <ProfileIcon name={icon.value} className="h-5 w-5" />
+          </span>
+          <span class="truncate">{profile.name}</span>
+        </h2>
         <p class="mt-1 text-sm text-muted-foreground">{mods.length}/{profile.enabledModKeys.length} linked mods available locally.</p>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <div class="flex gap-1 rounded-lg border border-white/10 bg-background/45 p-1">
+            {#each profileIcons as item}
+              <button
+                class="grid h-8 w-8 place-items-center rounded-md border border-transparent text-muted-foreground transition hover:bg-white/10 hover:text-foreground {profile.icon === item.value ? 'bg-white/10 text-foreground' : ''}"
+                type="button"
+                title={item.label}
+                on:click={() => onStyle(profile, item.value, profile.color)}
+              >
+                <ProfileIcon name={item.value} className="h-4 w-4" />
+              </button>
+            {/each}
+          </div>
+          <div class="flex gap-1 rounded-lg border border-white/10 bg-background/45 p-1">
+            {#each profileColors as item}
+              <button
+                class="h-8 w-8 rounded-md border-2 transition hover:scale-105"
+                style={`background: linear-gradient(135deg, ${item.from}, ${item.to}); border-color: ${profile.color === item.value ? item.text : item.border};`}
+                type="button"
+                title={item.label}
+                on:click={() => onStyle(profile, profile.icon, item.value)}
+              ></button>
+            {/each}
+          </div>
+        </div>
       </div>
       <div class="flex flex-wrap gap-2">
         <Button disabled={busy} on:click={() => onApply(profile)}>Apply</Button>

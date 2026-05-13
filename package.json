@@ -12,13 +12,14 @@
   },
   "dependencies": {
     "@oppw4/shared": "file:packages/shared",
-    "@tauri-apps/api": "^2.9.0",
-    "@tauri-apps/plugin-dialog": "^2.4.0",
     "@sveltejs/adapter-static": "^3.0.9",
     "@sveltejs/kit": "^2.59.1",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "@tauri-apps/api": "^2.9.0",
+    "@tauri-apps/plugin-dialog": "^2.4.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "lucide-svelte": "^1.0.1",
     "svelte": "^5.35.5"
   },
   "devDependencies": {

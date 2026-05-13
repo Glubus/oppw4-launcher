@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { LauncherActionContext } from "./actionContext";
 import type { InstalledMod, ModProfile } from "./types";
 
-export async function createProfile(ctx: LauncherActionContext) {
+export async function createProfile(ctx: LauncherActionContext, icon = "sparkles", color = "violet") {
   const name = ctx.getProfileName().trim();
   if (!name) return;
   const config = ctx.getConfig();
@@ -10,12 +10,12 @@ export async function createProfile(ctx: LauncherActionContext) {
     ctx.setError("A profile with this name already exists.");
     return;
   }
-  ctx.setConfig({ ...config, modProfiles: [...config.modProfiles, { id: `profile-${Date.now()}`, name, icon: "sparkles", color: "violet", enabledModKeys: [] }] });
+  ctx.setConfig({ ...config, modProfiles: [...config.modProfiles, { id: `profile-${Date.now()}`, name, icon, color, enabledModKeys: [] }] });
   ctx.setProfileName("");
   await ctx.saveAndRefresh("Profile created.");
 }
 
-export async function saveCurrentProfile(ctx: LauncherActionContext) {
+export async function saveCurrentProfile(ctx: LauncherActionContext, icon = "sparkles", color = "violet") {
   const name = ctx.getProfileName().trim();
   if (!name) return;
   const config = ctx.getConfig();
@@ -23,8 +23,8 @@ export async function saveCurrentProfile(ctx: LauncherActionContext) {
   const nextProfile = {
     id: existingIndex >= 0 ? config.modProfiles[existingIndex].id : `profile-${Date.now()}`,
     name,
-    icon: existingIndex >= 0 ? config.modProfiles[existingIndex].icon : "sparkles",
-    color: existingIndex >= 0 ? config.modProfiles[existingIndex].color : "violet",
+    icon: existingIndex >= 0 ? config.modProfiles[existingIndex].icon : icon,
+    color: existingIndex >= 0 ? config.modProfiles[existingIndex].color : color,
     enabledModKeys: ctx.getInstalledMods().filter((mod) => mod.enabled).map((mod) => mod.modKey)
   };
   ctx.setConfig({
@@ -66,6 +66,7 @@ export async function deleteProfile(ctx: LauncherActionContext, profile: ModProf
 
 export async function updateProfileStyle(ctx: LauncherActionContext, profile: ModProfile, icon: string, color: string) {
   const config = ctx.getConfig();
+  ctx.setSelectedProfile({ ...profile, icon, color });
   ctx.setConfig({
     ...config,
     modProfiles: config.modProfiles.map((item) => item.id === profile.id ? { ...item, icon, color } : item)

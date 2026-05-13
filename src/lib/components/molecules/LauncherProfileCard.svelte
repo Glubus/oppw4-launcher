@@ -2,6 +2,7 @@
   import ChevronIcon from "$lib/components/atoms/ChevronIcon.svelte";
   import Button from "$lib/components/ui/Button.svelte";
   import { profileColor, profileIcon } from "$lib/components/launcher/helpers";
+  import ProfileIcon from "$lib/components/launcher/ProfileIcon.svelte";
   import type { ModProfile } from "$lib/components/launcher/types";
 
   type InstalledMod = {
@@ -41,9 +42,9 @@
     {#if preview?.coverDataUrl}
       <img class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.035]" src={preview.coverDataUrl} alt={preview.name} />
     {:else}
-      <div class={`absolute inset-0 bg-gradient-to-br ${color.className}`}></div>
-      <div class={`absolute left-5 top-5 grid h-16 w-16 place-items-center rounded-md border bg-white/12 text-4xl font-black shadow-xl backdrop-blur ${color.className}`}>
-        {icon.glyph}
+      <div class="absolute inset-0" style={`background: linear-gradient(135deg, ${color.from}, ${color.to});`}></div>
+      <div class="absolute left-5 top-5 grid h-16 w-16 place-items-center rounded-md border bg-white/12 shadow-xl backdrop-blur" style={`border-color: ${color.border}; color: ${color.text};`}>
+        <ProfileIcon name={icon.value} className="h-8 w-8" />
       </div>
     {/if}
 
@@ -73,7 +74,12 @@
     <div class="min-w-0">
       <p class="truncate text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">Preset / {profile.enabledModKeys.length} linked mod{profile.enabledModKeys.length === 1 ? "" : "s"}</p>
       <button class="mt-1 block text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" type="button" on:click={() => onOpen(profile)}>
-        <h3 class="line-clamp-2 text-2xl font-black leading-tight text-foreground"><span class="mr-2 text-primary">{icon.glyph}</span>{profile.name}</h3>
+        <h3 class="flex items-center gap-2 line-clamp-2 text-2xl font-black leading-tight text-foreground">
+          <span class="grid h-7 w-7 shrink-0 place-items-center rounded-md border bg-white/8" style={`border-color: ${color.border}; color: ${color.text};`}>
+            <ProfileIcon name={icon.value} className="h-4 w-4" />
+          </span>
+          {profile.name}
+        </h3>
       </button>
     </div>
 

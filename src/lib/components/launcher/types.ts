@@ -58,6 +58,7 @@ export type ReleaseInfo = {
   htmlUrl: string;
   prerelease: boolean;
   assetName?: string | null;
+  publishedAt?: string | null;
 };
 
 export type InstalledMod = {

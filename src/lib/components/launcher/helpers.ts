@@ -72,19 +72,20 @@ export function profilePreviewMods(profile: ModProfile, mods: InstalledMod[]) {
 }
 
 export const profileIcons = [
-  { value: "sparkles", label: "Sparkles", glyph: "✦" },
-  { value: "bolt", label: "Bolt", glyph: "↯" },
-  { value: "flame", label: "Flame", glyph: "◆" },
-  { value: "test", label: "Test", glyph: "T" },
-  { value: "clean", label: "Clean", glyph: "✓" }
+  { value: "sparkles", label: "Sparkles" },
+  { value: "bolt", label: "Bolt" },
+  { value: "flame", label: "Flame" },
+  { value: "test", label: "Test" },
+  { value: "clean", label: "Clean" },
+  { value: "gamepad", label: "Gamepad" }
 ];
 
 export const profileColors = [
-  { value: "violet", label: "Violet", className: "from-violet-500/35 to-fuchsia-500/20 border-violet-300/35 text-violet-50" },
-  { value: "cyan", label: "Cyan", className: "from-cyan-500/35 to-sky-500/20 border-cyan-300/35 text-cyan-50" },
-  { value: "emerald", label: "Emerald", className: "from-emerald-500/35 to-lime-500/20 border-emerald-300/35 text-emerald-50" },
-  { value: "amber", label: "Amber", className: "from-amber-500/35 to-orange-500/20 border-amber-300/35 text-amber-50" },
-  { value: "rose", label: "Rose", className: "from-rose-500/35 to-red-500/20 border-rose-300/35 text-rose-50" }
+  { value: "violet", label: "Violet", from: "rgba(139, 92, 246, 0.36)", to: "rgba(217, 70, 239, 0.18)", border: "rgba(196, 181, 253, 0.38)", text: "rgb(245, 243, 255)" },
+  { value: "cyan", label: "Cyan", from: "rgba(6, 182, 212, 0.34)", to: "rgba(14, 165, 233, 0.18)", border: "rgba(103, 232, 249, 0.38)", text: "rgb(236, 254, 255)" },
+  { value: "emerald", label: "Emerald", from: "rgba(16, 185, 129, 0.34)", to: "rgba(132, 204, 22, 0.16)", border: "rgba(110, 231, 183, 0.38)", text: "rgb(236, 253, 245)" },
+  { value: "amber", label: "Amber", from: "rgba(245, 158, 11, 0.34)", to: "rgba(249, 115, 22, 0.18)", border: "rgba(252, 211, 77, 0.40)", text: "rgb(255, 251, 235)" },
+  { value: "rose", label: "Rose", from: "rgba(244, 63, 94, 0.34)", to: "rgba(239, 68, 68, 0.18)", border: "rgba(253, 164, 175, 0.40)", text: "rgb(255, 241, 242)" }
 ];
 
 export function profileIcon(profile: ModProfile) {

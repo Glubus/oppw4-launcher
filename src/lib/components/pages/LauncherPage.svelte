@@ -46,7 +46,8 @@
   $: canLaunch = config.launchMode === "steam" || Boolean(config.gameExecutablePath);
   $: isInstalled = config.installedFiles.length > 0;
   $: currentRelease = config.modloaderRelease || "Not installed";
-  $: latestReleaseLabel = latestRelease?.tagName || "Unknown";
+  $: latestReleaseLabel = latestRelease?.tagName || "";
+  $: latestReleaseDate = latestRelease?.publishedAt || "";
   $: updateLabel = !isInstalled ? "Install patcher" : needsPatcherUpdate ? "Update patcher" : "";
   $: updateCount = installedMods.filter((mod) => Boolean(updateSkins[mod.path])).length;
   $: selectedProfileMods = selectedProfile ? installedMods.filter((mod) => selectedProfile?.enabledModKeys.includes(mod.modKey)) : [];
@@ -144,6 +145,37 @@
     }
   }
 
+  function createProfile(icon: string, color: string) {
+    return profileActions.createProfile(ctx, icon, color);
+  }
+
+  function saveEnabledProfile(icon: string, color: string) {
+    return profileActions.saveCurrentProfile(ctx, icon, color);
+  }
+
+  function openProfile(profile: ModProfile) {
+    selectedProfile = profile;
+  }
+
+  function applyProfile(profile: ModProfile) {
+    return profileActions.applyProfile(ctx, profile);
+  }
+
+  function deleteProfile(profile: ModProfile) {
+    return profileActions.deleteProfile(ctx, profile);
+  }
+
+  function updateProfileStyle(profile: ModProfile, icon: string, color: string) {
+    return profileActions.updateProfileStyle(ctx, profile, icon, color);
+  }
+
+  function closeProfile() {
+    selectedProfile = null;
+  }
+
+  function toggleProfileMod(mod: InstalledMod) {
+    return nativeActions.toggleInstalledMod(ctx, mod);
+  }
 </script>
 
 <svelte:head>
@@ -153,7 +185,7 @@
 <AppHeader />
 
 <main class="mx-auto grid max-w-7xl gap-5 px-4 py-6">
-  <LauncherHero {currentRelease} {latestReleaseLabel} {modloaderStatus} localHash={localModloaderSha256} remoteHash={remoteModloaderSha256} {updateLabel} {isDesktop} {busy} {loading} {hasGameFolder} {canLaunch} hasLatestRelease={Boolean(latestRelease)} onInstall={() => nativeActions.installModloader(ctx)} onLaunch={() => nativeActions.launchGame(ctx)} onCheck={() => nativeActions.checkModloaderIntegrity(ctx)} />
+  <LauncherHero {currentRelease} {latestReleaseLabel} {latestReleaseDate} {modloaderStatus} {updateLabel} {isDesktop} {busy} {loading} {hasGameFolder} {canLaunch} hasLatestRelease={Boolean(latestRelease)} onInstall={() => nativeActions.installModloader(ctx)} onLaunch={() => nativeActions.launchGame(ctx)} onCheck={() => nativeActions.checkModloaderIntegrity(ctx)} />
 
   {#if !isDesktop}
     <DesktopOnlyCard />
@@ -165,7 +197,7 @@
       {#if activePanel === "mods"}
         <LauncherModsPanel installedMods={installedMods} profiles={config.modProfiles} {updateSkins} {hasGameFolder} {busy} {checkingUpdates} {updatingAll} {updateCount} onImportZip={() => nativeActions.importExternalZip(ctx)} onUpdateAll={() => updateActions.updateAllInstalledMods(ctx)} onToggleMod={(mod) => nativeActions.toggleInstalledMod(ctx, mod)} onRemoveMod={(mod) => nativeActions.removeInstalledMod(ctx, mod)} onAddToProfile={(profile, mod) => profileActions.addModToProfile(ctx, profile, mod)} />
       {:else if activePanel === "profiles"}
-        <LauncherProfilesPanel profiles={config.modProfiles} {installedMods} bind:profileName {busy} onCreate={() => profileActions.createProfile(ctx)} onSaveEnabled={() => profileActions.saveCurrentProfile(ctx)} onOpen={(profile) => (selectedProfile = profile)} onApply={(profile) => profileActions.applyProfile(ctx, profile)} onDelete={(profile) => profileActions.deleteProfile(ctx, profile)} onStyle={(profile, icon, color) => profileActions.updateProfileStyle(ctx, profile, icon, color)} />
+        <LauncherProfilesPanel profiles={config.modProfiles} {installedMods} bind:profileName {busy} onCreateWithStyle={createProfile} onSaveEnabledWithStyle={saveEnabledProfile} onOpen={openProfile} onApply={applyProfile} onDelete={deleteProfile} />
       {:else if activePanel === "settings"}
         <LauncherSettingsPanel bind:config {detectedGame} {hasGameFolder} {healthItems} {busy} onUseDetected={() => nativeActions.useDetectedGame(ctx)} onSetLaunchMode={(mode) => nativeActions.setLaunchMode(ctx, mode)} onChooseGameFolder={() => nativeActions.chooseGameFolder(ctx)} onChooseExecutable={() => nativeActions.chooseExecutable(ctx)} onRepositoryChange={() => saveAndRefresh("Repository saved.")} onRunHealth={runHealthCheck} onExportDiagnostics={() => nativeActions.exportDiagnostics(ctx)} />
       {:else}
@@ -175,6 +207,6 @@
   {/if}
 
   {#if selectedProfile}
-    <ProfileModal profile={selectedProfile} mods={selectedProfileMods} {updateSkins} {busy} onApply={(profile) => profileActions.applyProfile(ctx, profile)} onClose={() => (selectedProfile = null)} onToggleMod={(mod) => nativeActions.toggleInstalledMod(ctx, mod)} />
+    <ProfileModal profile={selectedProfile} mods={selectedProfileMods} {updateSkins} {busy} onApply={applyProfile} onClose={closeProfile} onStyle={updateProfileStyle} onToggleMod={toggleProfileMod} />
   {/if}
 </main>

@@ -16,6 +16,7 @@ pub struct ReleaseInfo {
   pub html_url: String,
   pub prerelease: bool,
   pub asset_name: Option<String>,
+  pub published_at: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -25,6 +26,7 @@ struct GithubRelease {
   body: Option<String>,
   html_url: String,
   prerelease: bool,
+  published_at: Option<String>,
   assets: Vec<GithubAsset>,
 }
 
@@ -114,6 +116,7 @@ pub fn latest_release_info(repo: &str) -> Result<Option<ReleaseInfo>, String> {
     html_url: release.html_url,
     prerelease: release.prerelease,
     asset_name,
+    published_at: release.published_at.and_then(|value| value.split('T').next().map(str::to_string)),
   }))
 }
 

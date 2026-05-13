@@ -2,10 +2,9 @@
   import Button from "$lib/components/ui/Button.svelte";
 
   export let currentRelease = "Not installed";
-  export let latestReleaseLabel = "Unknown";
+  export let latestReleaseLabel = "";
+  export let latestReleaseDate = "";
   export let modloaderStatus = "Missing";
-  export let localHash: string | null | undefined = null;
-  export let remoteHash: string | null | undefined = null;
   export let updateLabel = "";
   export let isDesktop = false;
   export let busy = false;
@@ -22,16 +21,16 @@
   <div>
     <p class="text-xs font-black uppercase tracking-[0.22em] text-primary/90">Desktop launcher</p>
     <h1 class="mt-1 text-4xl font-black tracking-tight">Launch and manage mods</h1>
-    <p class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Installed patcher: <span class="font-bold text-foreground">{currentRelease}</span> · Latest: <span class="font-bold text-foreground">{latestReleaseLabel}</span></p>
-    <p class="mt-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-      {modloaderStatus}
-      {#if localHash}
-        · local {localHash.slice(0, 8)}
+    <p class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+      Current: <span class="font-bold text-foreground">{currentRelease}</span>
+      {#if latestReleaseLabel}
+        · Latest: <span class="font-bold text-foreground">{latestReleaseLabel}</span>
       {/if}
-      {#if remoteHash}
-        · latest {remoteHash.slice(0, 8)}
+      {#if latestReleaseDate}
+        · Released <span class="font-bold text-foreground">{latestReleaseDate}</span>
       {/if}
     </p>
+    <p class="mt-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">{modloaderStatus}</p>
   </div>
   <div class="flex flex-wrap gap-2">
     <Button variant="outline" size="lg" disabled={!isDesktop || busy || !hasGameFolder} on:click={onCheck}>Check patcher</Button>
