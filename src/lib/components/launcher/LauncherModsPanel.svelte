@@ -17,7 +17,6 @@
   export let updateCount = 0;
   export let onImportZip: () => void = () => {};
   export let onUpdateAll: () => void = () => {};
-  export let onRefresh: () => void = () => {};
   export let onToggleMod: (mod: InstalledMod) => void = () => {};
   export let onAddToProfile: (profile: ModProfile, mod: InstalledMod) => void = () => {};
 
@@ -74,7 +73,9 @@
       {#if updateCount}
         <Button size="sm" disabled={updatingAll} on:click={onUpdateAll}>{updatingAll ? "Updating..." : `Update all (${updateCount})`}</Button>
       {/if}
-      <Button variant="outline" size="sm" disabled={checkingUpdates || updatingAll} on:click={onRefresh}>{checkingUpdates ? "Checking..." : "Refresh"}</Button>
+      {#if checkingUpdates}
+        <span class="inline-flex h-9 items-center rounded-md border border-white/12 bg-background/55 px-3 text-xs font-black uppercase tracking-wide text-muted-foreground">Checking updates...</span>
+      {/if}
     </div>
   </div>
 

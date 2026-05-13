@@ -40,6 +40,7 @@
   let profileName = "";
   let selectedProfile: ModProfile | null = null;
   let healthItems: HealthCheckItem[] = [];
+  let lastUpdateFingerprint = "";
 
   $: hasGameFolder = Boolean(config.gameFolder);
   $: canLaunch = config.launchMode === "steam" || Boolean(config.gameExecutablePath);
@@ -49,6 +50,11 @@
   $: updateLabel = !isInstalled ? "Install patcher" : needsPatcherUpdate ? "Update patcher" : "";
   $: updateCount = installedMods.filter((mod) => Boolean(updateSkins[mod.path])).length;
   $: selectedProfileMods = selectedProfile ? installedMods.filter((mod) => selectedProfile?.enabledModKeys.includes(mod.modKey)) : [];
+  $: installedModsFingerprint = installedMods.map((mod) => [mod.path, mod.version ?? "", mod.slug ?? "", mod.sourceUrl ?? ""].join("|")).join("::");
+  $: if (isDesktop && installedModsFingerprint !== lastUpdateFingerprint) {
+    lastUpdateFingerprint = installedModsFingerprint;
+    void updateActions.checkInstalledUpdates(ctx, installedMods);
+  }
 
   const ctx: LauncherActionContext = {
     getConfig: () => config, setConfig: (value) => (config = value), getDetectedGame: () => detectedGame, getInstalledMods: () => installedMods,
@@ -57,13 +63,25 @@
     setError: (value) => (error = value), setMessage: (value) => (message = value), load: () => load(), save: () => save(), saveAndRefresh: (success) => saveAndRefresh(success), runBusy: (action, fallback) => runBusy(action, fallback)
   };
 
-  onMount(async () => {
+  onMount(() => {
     isDesktop = "__TAURI_INTERNALS__" in window;
     if (!isDesktop) {
       loading = false;
       return;
     }
-    await load();
+    void load();
+    const refreshOnFocus = () => {
+      if (!loading && !busy) void load();
+    };
+    const refreshOnVisible = () => {
+      if (document.visibilityState === "visible") refreshOnFocus();
+    };
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnVisible);
+    return () => {
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnVisible);
+    };
   });
 
   async function load() {
@@ -79,7 +97,6 @@
       needsPatcherUpdate = state.needsPatcherUpdate;
       localModloaderSha256 = state.localModloaderSha256 ?? null;
       remoteModloaderSha256 = state.remoteModloaderSha256 ?? null;
-      await updateActions.checkInstalledUpdates(ctx, installedMods);
     } catch (err) {
       error = errorMessage(err, "Could not load launcher state");
     } finally {
@@ -146,7 +163,7 @@
       <LauncherTabs {activePanel} onSelect={(panel) => (activePanel = panel)} />
 
       {#if activePanel === "mods"}
-        <LauncherModsPanel installedMods={installedMods} profiles={config.modProfiles} {updateSkins} {hasGameFolder} {busy} {checkingUpdates} {updatingAll} {updateCount} onImportZip={() => nativeActions.importExternalZip(ctx)} onUpdateAll={() => updateActions.updateAllInstalledMods(ctx)} onRefresh={load} onToggleMod={(mod) => nativeActions.toggleInstalledMod(ctx, mod)} onAddToProfile={(profile, mod) => profileActions.addModToProfile(ctx, profile, mod)} />
+        <LauncherModsPanel installedMods={installedMods} profiles={config.modProfiles} {updateSkins} {hasGameFolder} {busy} {checkingUpdates} {updatingAll} {updateCount} onImportZip={() => nativeActions.importExternalZip(ctx)} onUpdateAll={() => updateActions.updateAllInstalledMods(ctx)} onToggleMod={(mod) => nativeActions.toggleInstalledMod(ctx, mod)} onAddToProfile={(profile, mod) => profileActions.addModToProfile(ctx, profile, mod)} />
       {:else if activePanel === "profiles"}
         <LauncherProfilesPanel profiles={config.modProfiles} {installedMods} bind:profileName {busy} onCreate={() => profileActions.createProfile(ctx)} onSaveEnabled={() => profileActions.saveCurrentProfile(ctx)} onOpen={(profile) => (selectedProfile = profile)} onApply={(profile) => profileActions.applyProfile(ctx, profile)} onDelete={(profile) => profileActions.deleteProfile(ctx, profile)} onStyle={(profile, icon, color) => profileActions.updateProfileStyle(ctx, profile, icon, color)} />
       {:else if activePanel === "settings"}
