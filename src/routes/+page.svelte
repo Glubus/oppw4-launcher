@@ -13,6 +13,7 @@
 
   type SkinListResponse = {
     skins: Skin[];
+    totalCount: number;
     pagination: {
       page: number;
       limit: number;
@@ -75,7 +76,7 @@
       const skinData = await apiFetch<SkinListResponse>(`/skins?${params}`);
       skins = reset ? skinData.skins : [...skins, ...skinData.skins];
       page = skinData.pagination.page;
-      total = skinData.pagination.total;
+      total = skinData.totalCount;
       hasMore = skinData.pagination.hasMore;
     } catch (err) {
       error = err instanceof Error ? err.message : "Could not load skins";
