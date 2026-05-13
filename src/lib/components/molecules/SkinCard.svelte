@@ -26,7 +26,7 @@
   let activeImage = 0;
   let installing = false;
   let installedMod: InstalledMod | null = null;
-  let selectedFileId = "";
+  let showFileMenu = false;
 
   $: isDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   $: upToDate = Boolean(installedMod && installedMod.version === skin.version);
@@ -52,9 +52,7 @@
   $: obtainKind = skin.links?.[0]?.kind ?? (skin.files?.[0] ? "zip" : "external");
   $: descriptionPreview = markdownToPlainText(skin.description);
   $: hostedFiles = skin.files ?? [];
-  $: if (!selectedFileId && hostedFiles.length) selectedFileId = hostedFiles[0].id;
-  $: if (selectedFileId && hostedFiles.length && !hostedFiles.some((file) => file.id === selectedFileId)) selectedFileId = hostedFiles[0].id;
-  $: hostedFile = hostedFiles.find((file) => file.id === selectedFileId) ?? hostedFiles[0] ?? null;
+  $: hostedFile = hostedFiles[0] ?? null;
 
   onMount(refreshInstalledState);
 
@@ -79,11 +77,20 @@
     activeImage = activeImage === images.length - 1 ? 0 : activeImage + 1;
   }
 
-  async function installHostedMod() {
-    if (!hostedFile || installing) return;
+  function handleInstallClick() {
+    if (hostedFiles.length > 1) {
+      showFileMenu = !showFileMenu;
+      return;
+    }
+    if (hostedFile) void installHostedMod(hostedFile);
+  }
+
+  async function installHostedMod(file: { id: string; fileName: string }) {
+    if (installing) return;
+    showFileMenu = false;
     installing = true;
     try {
-      const result = await invoke<InstallHostedModResult>("install_hosted_mod", { input: { fileId: hostedFile.id, fileName: hostedFile.fileName } });
+      const result = await invoke<InstallHostedModResult>("install_hosted_mod", { input: { fileId: file.id, fileName: file.fileName } });
       installedMod = result.modInfo;
       toastStore.push(result.alreadyUpToDate ? "Already up to date." : `${skin.title} installed.`, "success");
     } catch (err) {
@@ -185,23 +192,25 @@
     <div class="grid grid-cols-2 gap-2">
       <a class="pointer-events-auto inline-flex h-10 items-center justify-center rounded-md border border-input bg-background/70 px-4 py-2 text-sm font-bold text-foreground backdrop-blur hover:bg-accent" href={`/skins/${skin.slug}`}>View</a>
       {#if isDesktop && hostedFile}
-        <div class="grid gap-2">
-          {#if hostedFiles.length > 1}
-            <select class="pointer-events-auto h-9 min-w-0 rounded-md border border-white/12 bg-background/80 px-2 text-xs font-bold text-foreground backdrop-blur" bind:value={selectedFileId} disabled={installing || upToDate} aria-label={`Choose ${skin.title} file`}>
-              {#each hostedFiles as file}
-                <option value={file.id}>{file.fileName}</option>
-              {/each}
-            </select>
-          {/if}
+        <div class="relative">
           <button
-            class="pointer-events-auto inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60 {upToDate ? 'border border-white/12 bg-background/55 text-muted-foreground' : 'bg-primary text-primary-foreground hover:bg-primary/90'}"
+            class="pointer-events-auto inline-flex h-10 w-full items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60 {upToDate ? 'border border-white/12 bg-background/55 text-muted-foreground' : 'bg-primary text-primary-foreground hover:bg-primary/90'}"
             type="button"
             disabled={installing || upToDate}
-            on:click={installHostedMod}
+            on:click={handleInstallClick}
           >
             <LinkKindIcon kind="zip" />
-            {installing ? "Installing..." : upToDate ? "Up to date" : "Install"}
+            {installing ? "Installing..." : upToDate ? "Up to date" : hostedFiles.length > 1 ? "Install..." : "Install"}
           </button>
+          {#if showFileMenu && hostedFiles.length > 1}
+            <div class="pointer-events-auto absolute bottom-12 right-0 z-50 grid w-64 gap-1 rounded-lg border border-white/12 bg-popover/95 p-2 text-popover-foreground shadow-2xl backdrop-blur-md">
+              {#each hostedFiles as file}
+                <button class="flex min-h-9 w-full items-center justify-start rounded-md px-2 text-left text-sm font-bold hover:bg-white/10" type="button" on:click={() => installHostedMod(file)}>
+                  <span class="min-w-0 truncate">{file.fileName}</span>
+                </button>
+              {/each}
+            </div>
+          {/if}
         </div>
       {:else if obtainHref}
         <a class="pointer-events-auto inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90" href={obtainHref}>
