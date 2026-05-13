@@ -1,9 +1,8 @@
 <script lang="ts">
   import Button from "$lib/components/ui/Button.svelte";
-  import Input from "$lib/components/ui/Input.svelte";
   import LauncherProfileCard from "$lib/components/molecules/LauncherProfileCard.svelte";
-  import ProfileIcon from "./ProfileIcon.svelte";
-  import { profileColors, profileIcons, profileModCount, profilePreviewMods } from "./helpers";
+  import ProfileCreateModal from "./ProfileCreateModal.svelte";
+  import { profileModCount, profilePreviewMods } from "./helpers";
   import type { InstalledMod, ModProfile } from "./types";
 
   export let profiles: ModProfile[] = [];
@@ -16,8 +15,7 @@
   export let onCreateWithStyle: (icon: string, color: string) => void = () => {};
   export let onSaveEnabledWithStyle: (icon: string, color: string) => void = () => {};
 
-  let newProfileIcon = "sparkles";
-  let newProfileColor = "violet";
+  let showCreator = false;
 </script>
 
 <div class="grid gap-5 p-2 pt-5">
@@ -26,23 +24,7 @@
       <h2 class="text-xl font-black">Profiles</h2>
       <p class="mt-2 text-sm leading-6 text-muted-foreground">Build presets for enabled mods, then switch setups before launching the game.</p>
     </div>
-    <div class="flex flex-wrap items-end gap-2">
-      <Input class="w-56" bind:value={profileName} placeholder="Profile name" />
-      <div class="flex gap-1 rounded-lg border border-white/10 bg-background/45 p-1">
-        {#each profileIcons as icon}
-          <button class="grid h-9 w-9 place-items-center rounded-md border border-transparent text-muted-foreground hover:bg-white/10 hover:text-foreground {newProfileIcon === icon.value ? 'bg-white/10 text-foreground' : ''}" type="button" title={icon.label} on:click={() => (newProfileIcon = icon.value)}>
-            <ProfileIcon name={icon.value} className="h-4 w-4" />
-          </button>
-        {/each}
-      </div>
-      <div class="flex gap-1 rounded-lg border border-white/10 bg-background/45 p-1">
-        {#each profileColors as color}
-          <button class="h-9 w-9 rounded-md border-2" style={`background: linear-gradient(135deg, ${color.from}, ${color.to}); border-color: ${newProfileColor === color.value ? color.text : color.border};`} type="button" title={color.label} on:click={() => (newProfileColor = color.value)}></button>
-        {/each}
-      </div>
-      <Button disabled={!profileName.trim() || busy} on:click={() => onCreateWithStyle(newProfileIcon, newProfileColor)}>Create</Button>
-      <Button variant="outline" disabled={!profileName.trim() || !installedMods.length || busy} on:click={() => onSaveEnabledWithStyle(newProfileIcon, newProfileColor)}>Save enabled mods</Button>
-    </div>
+    <Button disabled={busy} on:click={() => (showCreator = true)}>Add new profile</Button>
   </div>
 
   {#if profiles.length}
@@ -63,3 +45,14 @@
     <p class="rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">No profiles yet. Create one here, then add mods from the Mods tab.</p>
   {/if}
 </div>
+
+{#if showCreator}
+  <ProfileCreateModal
+    bind:profileName
+    installedCount={installedMods.length}
+    {busy}
+    onClose={() => (showCreator = false)}
+    onCreate={onCreateWithStyle}
+    onSaveEnabled={onSaveEnabledWithStyle}
+  />
+{/if}

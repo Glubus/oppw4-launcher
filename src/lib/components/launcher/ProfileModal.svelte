@@ -1,7 +1,8 @@
 <script lang="ts">
   import Button from "$lib/components/ui/Button.svelte";
   import ProfileIcon from "./ProfileIcon.svelte";
-  import { modInitials, modPageHref, profileColor, profileColors, profileIcon, profileIcons } from "./helpers";
+  import ProfileStyleDropdown from "./ProfileStyleDropdown.svelte";
+  import { modInitials, modPageHref, profileColor, profileIcon } from "./helpers";
   import type { InstalledMod, ModProfile, UpdateSkinMap } from "./types";
 
   export let profile: ModProfile;
@@ -33,30 +34,8 @@
           <span class="truncate">{profile.name}</span>
         </h2>
         <p class="mt-1 text-sm text-muted-foreground">{mods.length}/{profile.enabledModKeys.length} linked mods available locally.</p>
-        <div class="mt-3 flex flex-wrap gap-2">
-          <div class="flex gap-1 rounded-lg border border-white/10 bg-background/45 p-1">
-            {#each profileIcons as item}
-              <button
-                class="grid h-8 w-8 place-items-center rounded-md border border-transparent text-muted-foreground transition hover:bg-white/10 hover:text-foreground {profile.icon === item.value ? 'bg-white/10 text-foreground' : ''}"
-                type="button"
-                title={item.label}
-                on:click={() => onStyle(profile, item.value, profile.color)}
-              >
-                <ProfileIcon name={item.value} className="h-4 w-4" />
-              </button>
-            {/each}
-          </div>
-          <div class="flex gap-1 rounded-lg border border-white/10 bg-background/45 p-1">
-            {#each profileColors as item}
-              <button
-                class="h-8 w-8 rounded-md border-2 transition hover:scale-105"
-                style={`background: linear-gradient(135deg, ${item.from}, ${item.to}); border-color: ${profile.color === item.value ? item.text : item.border};`}
-                type="button"
-                title={item.label}
-                on:click={() => onStyle(profile, profile.icon, item.value)}
-              ></button>
-            {/each}
-          </div>
+        <div class="mt-3">
+          <ProfileStyleDropdown icon={profile.icon} color={profile.color} disabled={busy} onIcon={(value) => onStyle(profile, value, profile.color)} onColor={(value) => onStyle(profile, profile.icon, value)} />
         </div>
       </div>
       <div class="flex flex-wrap gap-2">
