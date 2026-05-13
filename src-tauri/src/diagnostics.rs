@@ -61,8 +61,24 @@ pub fn export_diagnostics_zip(path: PathBuf, config: &LauncherConfig, mods: &[In
     }
   }
 
+  if let Some(crash_log_path) = crash_log(config) {
+    if let Ok(bytes) = fs::read(&crash_log_path) {
+      writer
+        .start_file("crash.log", options)
+        .map_err(|err| format!("Could not write diagnostics ZIP: {err}"))?;
+      writer
+        .write_all(&bytes)
+        .map_err(|err| format!("Could not write diagnostics ZIP: {err}"))?;
+    }
+  }
+
   writer.finish().map_err(|err| format!("Could not finish diagnostics ZIP: {err}"))?;
   Ok(())
+}
+
+fn crash_log(config: &LauncherConfig) -> Option<PathBuf> {
+  let path = PathBuf::from(config.game_folder.as_ref()?).join("logs").join("crash.log");
+  path.is_file().then_some(path)
 }
 
 fn diagnostics_summary(config: &LauncherConfig, mods: &[InstalledMod], health: &[HealthCheckItem]) -> String {
