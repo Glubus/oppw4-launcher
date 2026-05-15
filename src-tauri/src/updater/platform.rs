@@ -6,22 +6,36 @@ use std::{
 };
 
 pub(crate) fn is_supported_asset(name: &str) -> bool {
-    let name = name.to_lowercase();
-    if name.ends_with(".sha256") || name.ends_with(".sha2") || name.ends_with(".sig") {
+    if has_extension(name, &["sha256", "sha2", "sig"]) {
         return false;
     }
     #[cfg(target_os = "windows")]
-    return name.ends_with(".msi") || name.ends_with(".exe") || name.ends_with(".zip");
+    return has_extension(name, &["msi", "exe", "zip"]);
     #[cfg(target_os = "linux")]
-    return name.ends_with(".appimage")
-        || name.ends_with(".deb")
-        || name.ends_with(".rpm")
-        || name.ends_with(".tar.gz")
-        || name.ends_with(".zip");
+    return has_extension(name, &["appimage", "deb", "rpm", "zip"])
+        || ends_with_ignore_ascii_case(name, ".tar.gz");
     #[cfg(target_os = "macos")]
-    return name.ends_with(".dmg") || name.ends_with(".app.tar.gz") || name.ends_with(".zip");
+    return has_extension(name, &["dmg", "zip"])
+        || ends_with_ignore_ascii_case(name, ".app.tar.gz");
     #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     false
+}
+
+fn has_extension(name: &str, extensions: &[&str]) -> bool {
+    Path::new(name)
+        .extension()
+        .and_then(|value| value.to_str())
+        .is_some_and(|extension| {
+            extensions
+                .iter()
+                .any(|expected| extension.eq_ignore_ascii_case(expected))
+        })
+}
+
+fn ends_with_ignore_ascii_case(value: &str, suffix: &str) -> bool {
+    value
+        .get(value.len().saturating_sub(suffix.len())..)
+        .is_some_and(|ending| ending.eq_ignore_ascii_case(suffix))
 }
 
 pub(crate) fn launcher_dir() -> UpdaterResult<PathBuf> {

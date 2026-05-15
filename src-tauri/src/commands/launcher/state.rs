@@ -12,7 +12,9 @@ pub(crate) fn get_launcher_state() -> Result<LauncherState, String> {
     if config.game_folder.is_none() {
         if let Some(game) = &detected_game {
             config.game_folder = Some(game.game_folder.clone());
-            config.game_executable_path = game.executable_path.clone();
+            config
+                .game_executable_path
+                .clone_from(&game.executable_path);
             write_config(&config)?;
         }
     }

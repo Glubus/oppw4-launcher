@@ -9,6 +9,11 @@ mod updater;
 const API_BASE: &str = "https://oppw4.prism.am/api";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// Runs the Tauri launcher application.
+///
+/// # Panics
+///
+/// Panics when Tauri fails to initialize or run the application context.
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())

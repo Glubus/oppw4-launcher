@@ -1,6 +1,7 @@
 use std::process::Command;
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 pub(crate) fn open_external_url(url: String) -> Result<(), String> {
     if !(url.starts_with("https://") || url.starts_with("http://")) {
         return Err("Only web URLs can be opened externally.".to_string());

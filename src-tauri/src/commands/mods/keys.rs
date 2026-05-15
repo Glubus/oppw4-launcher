@@ -10,13 +10,13 @@ pub(crate) fn installed_dependency_keys(mods: &[InstalledMod]) -> HashSet<String
 
 fn installed_dependency_keys_for_mod(mod_info: &InstalledMod) -> Vec<String> {
     let mut keys = vec![mod_info.mod_key.clone()];
-    push_optional_dependency_keys(&mut keys, "id", &mod_info.mod_id);
-    push_optional_dependency_keys(&mut keys, "slug", &mod_info.slug);
-    push_optional_dependency_keys(&mut keys, "source", &mod_info.source_url);
+    push_optional_dependency_keys(&mut keys, "id", mod_info.mod_id.as_ref());
+    push_optional_dependency_keys(&mut keys, "slug", mod_info.slug.as_ref());
+    push_optional_dependency_keys(&mut keys, "source", mod_info.source_url.as_ref());
     keys
 }
 
-fn push_optional_dependency_keys(keys: &mut Vec<String>, prefix: &str, value: &Option<String>) {
+fn push_optional_dependency_keys(keys: &mut Vec<String>, prefix: &str, value: Option<&String>) {
     if let Some(value) = value {
         keys.push(value.clone());
         keys.push(format!("{prefix}:{value}"));

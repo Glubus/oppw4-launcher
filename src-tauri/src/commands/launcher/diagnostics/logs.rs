@@ -20,12 +20,12 @@ fn latest_file_in_dir(path: PathBuf) -> Option<PathBuf> {
     fs::read_dir(path)
         .ok()?
         .flatten()
-        .filter_map(file_with_modified_time)
+        .filter_map(|entry| file_with_modified_time(&entry))
         .max_by_key(|(modified, _)| *modified)
         .map(|(_, path)| path)
 }
 
-fn file_with_modified_time(entry: fs::DirEntry) -> Option<(std::time::SystemTime, PathBuf)> {
+fn file_with_modified_time(entry: &fs::DirEntry) -> Option<(std::time::SystemTime, PathBuf)> {
     let path = entry.path();
     path.is_file()
         .then(|| {
@@ -76,7 +76,10 @@ mod tests {
             ..LauncherConfig::default()
         };
 
-        assert_eq!(latest_loader_log(&config).as_deref(), Some(new_log.as_path()));
+        assert_eq!(
+            latest_loader_log(&config).as_deref(),
+            Some(new_log.as_path())
+        );
     }
 
     #[test]

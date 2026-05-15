@@ -3,6 +3,7 @@ use super::types::ApplyProfileRequest;
 use crate::config::load_config as read_config;
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 pub(crate) fn apply_mod_profile(input: ApplyProfileRequest) -> Result<(), String> {
     let config = read_config()?;
     let profile = config

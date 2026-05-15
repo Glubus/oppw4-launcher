@@ -3,23 +3,29 @@ use crate::{
     config::{load_config as read_config, LauncherConfig},
     system_utils,
 };
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 pub(crate) fn set_mod_enabled(input: ToggleModRequest) -> Result<(), String> {
     let config = read_config()?;
     set_mod_path_enabled(&config, &input.path, input.enabled)
 }
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 pub(crate) fn reveal_mod_in_folder(input: RevealModRequest) -> Result<(), String> {
-    let path = checked_mod_path(input.path)?;
+    let path = checked_mod_path(&input.path)?;
     system_utils::reveal_path(&path)
 }
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 pub(crate) fn remove_installed_mod(input: RemoveModRequest) -> Result<(), String> {
-    let path = checked_mod_path(input.path)?;
+    let path = checked_mod_path(&input.path)?;
     if path.is_dir() {
         fs::remove_dir_all(&path).map_err(|err| format!("Could not remove mod folder: {err}"))?;
     } else {
@@ -33,74 +39,86 @@ pub(super) fn set_mod_path_enabled(
     mod_path: &str,
     enabled: bool,
 ) -> Result<(), String> {
+    let path = checked_mod_path_for_config(config, mod_path)?;
+    set_checked_mod_path_enabled(&path, enabled)
+}
+
+fn checked_mod_path(path: &str) -> Result<PathBuf, String> {
+    let config = read_config()?;
+    checked_mod_path_for_config(&config, path)
+}
+
+fn checked_mod_path_for_config(config: &LauncherConfig, path: &str) -> Result<PathBuf, String> {
+    let mods_dir = canonical_mods_dir(config)?;
+    let path = canonical_existing_mod_path(path)?;
+    require_top_level_mod_path(&path, &mods_dir)?;
+    Ok(path)
+}
+
+fn canonical_mods_dir(config: &LauncherConfig) -> Result<PathBuf, String> {
     let game_folder = config
         .game_folder
         .clone()
         .ok_or_else(|| "Set a game folder first.".to_string())?;
-    let mods_dir = PathBuf::from(game_folder).join("mods");
-    let mods_dir = mods_dir
+    PathBuf::from(game_folder)
+        .join("mods")
         .canonicalize()
-        .map_err(|_| "Mods folder does not exist.".to_string())?;
-    let path = PathBuf::from(mod_path);
-    if !path.exists() {
-        return Err("Mod path does not exist.".to_string());
-    }
-    let path = path
-        .canonicalize()
-        .map_err(|err| format!("Invalid mod path: {err}"))?;
-    if !path.starts_with(&mods_dir) || path.parent() != Some(mods_dir.as_path()) {
-        return Err("Mod must be inside the configured mods folder.".to_string());
-    }
-
-    let file_name = path
-        .file_name()
-        .and_then(|value| value.to_str())
-        .ok_or_else(|| "Invalid mod path.".to_string())?;
-
-    if enabled {
-        let enabled_name = file_name.trim_end_matches(".disabled");
-        if enabled_name == file_name {
-            return Ok(());
-        }
-        let target = path.with_file_name(enabled_name);
-        if target.exists() {
-            return Err("A mod with this enabled name already exists.".to_string());
-        }
-        fs::rename(&path, &target).map_err(|err| format!("Could not enable mod: {err}"))?;
-    } else {
-        if file_name.ends_with(".disabled") {
-            return Ok(());
-        }
-        let target = path.with_file_name(format!("{file_name}.disabled"));
-        if target.exists() {
-            return Err("A disabled copy of this mod already exists.".to_string());
-        }
-        fs::rename(&path, &target).map_err(|err| format!("Could not disable mod: {err}"))?;
-    }
-
-    Ok(())
+        .map_err(|_| "Mods folder does not exist.".to_string())
 }
 
-fn checked_mod_path(path: String) -> Result<PathBuf, String> {
-    let config = read_config()?;
-    let game_folder = config
-        .game_folder
-        .ok_or_else(|| "Set a game folder first.".to_string())?;
-    let mods_dir = PathBuf::from(game_folder).join("mods");
-    let mods_dir = mods_dir
-        .canonicalize()
-        .map_err(|_| "Mods folder does not exist.".to_string())?;
+fn canonical_existing_mod_path(path: &str) -> Result<PathBuf, String> {
     let path = PathBuf::from(path);
     if !path.exists() {
         return Err("Mod path does not exist.".to_string());
     }
-    let path = path
-        .canonicalize()
-        .map_err(|err| format!("Invalid mod path: {err}"))?;
-    if !path.starts_with(&mods_dir) || path.parent() != Some(mods_dir.as_path()) {
-        return Err("Mod must be inside the configured mods folder.".to_string());
+    path.canonicalize()
+        .map_err(|err| format!("Invalid mod path: {err}"))
+}
+
+fn require_top_level_mod_path(path: &Path, mods_dir: &Path) -> Result<(), String> {
+    if path.starts_with(mods_dir) && path.parent() == Some(mods_dir) {
+        Ok(())
+    } else {
+        Err("Mod must be inside the configured mods folder.".to_string())
     }
-    Ok(path)
+}
+
+fn set_checked_mod_path_enabled(path: &Path, enabled: bool) -> Result<(), String> {
+    let file_name = mod_file_name(path)?;
+    if enabled {
+        enable_mod_path(path, file_name)
+    } else {
+        disable_mod_path(path, file_name)
+    }
+}
+
+fn mod_file_name(path: &Path) -> Result<&str, String> {
+    path.file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "Invalid mod path.".to_string())
+}
+
+fn enable_mod_path(path: &Path, file_name: &str) -> Result<(), String> {
+    let enabled_name = file_name.trim_end_matches(".disabled");
+    if enabled_name == file_name {
+        return Ok(());
+    }
+    let target = path.with_file_name(enabled_name);
+    if target.exists() {
+        return Err("A mod with this enabled name already exists.".to_string());
+    }
+    fs::rename(path, &target).map_err(|err| format!("Could not enable mod: {err}"))
+}
+
+fn disable_mod_path(path: &Path, file_name: &str) -> Result<(), String> {
+    if file_name.ends_with(".disabled") {
+        return Ok(());
+    }
+    let target = path.with_file_name(format!("{file_name}.disabled"));
+    if target.exists() {
+        return Err("A disabled copy of this mod already exists.".to_string());
+    }
+    fs::rename(path, &target).map_err(|err| format!("Could not disable mod: {err}"))
 }
 
 #[cfg(test)]
@@ -202,8 +220,12 @@ mod tests {
         fs::write(&mod_path, b"zip").unwrap();
 
         assert_eq!(
-            set_mod_path_enabled(&LauncherConfig::default(), &mod_path.to_string_lossy(), false)
-                .unwrap_err(),
+            set_mod_path_enabled(
+                &LauncherConfig::default(),
+                &mod_path.to_string_lossy(),
+                false
+            )
+            .unwrap_err(),
             "Set a game folder first."
         );
 
@@ -214,6 +236,49 @@ mod tests {
         assert_eq!(
             set_mod_path_enabled(&config, &mod_path.to_string_lossy(), false).unwrap_err(),
             "Mods folder does not exist."
+        );
+    }
+
+    #[test]
+    fn checked_mod_path_for_config_returns_canonical_top_level_path() {
+        let temp = tempfile::tempdir().unwrap();
+        let mods_dir = temp.path().join("mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+        let mod_path = mods_dir.join("law.zip");
+        fs::write(&mod_path, b"zip").unwrap();
+        let config = LauncherConfig {
+            game_folder: Some(temp.path().to_string_lossy().to_string()),
+            ..LauncherConfig::default()
+        };
+
+        let checked = checked_mod_path_for_config(&config, &mod_path.to_string_lossy()).unwrap();
+
+        assert_eq!(checked, mod_path.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn canonical_existing_mod_path_rejects_missing_path() {
+        let err = canonical_existing_mod_path("/path/that/does/not/exist").unwrap_err();
+
+        assert_eq!(err, "Mod path does not exist.");
+    }
+
+    #[test]
+    fn require_top_level_mod_path_rejects_sibling_and_nested_paths() {
+        let mods_dir = Path::new("/game/mods");
+        let sibling = Path::new("/game/other.zip");
+        let nested = Path::new("/game/mods/folder/mod.zip");
+
+        assert!(require_top_level_mod_path(sibling, mods_dir).is_err());
+        assert!(require_top_level_mod_path(nested, mods_dir).is_err());
+        assert!(require_top_level_mod_path(Path::new("/game/mods/mod.zip"), mods_dir).is_ok());
+    }
+
+    #[test]
+    fn mod_file_name_rejects_paths_without_file_name() {
+        assert_eq!(
+            mod_file_name(Path::new("/")).unwrap_err(),
+            "Invalid mod path."
         );
     }
 }

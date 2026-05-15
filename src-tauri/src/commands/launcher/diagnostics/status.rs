@@ -6,7 +6,7 @@ use crate::{
     config::LauncherConfig,
     installer,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub(crate) fn modloader_status(config: &LauncherConfig, local_hash: Option<&str>) -> String {
     let Some(game_folder) = &config.game_folder else {
@@ -53,7 +53,7 @@ fn valid_game_folder(config: &LauncherConfig) -> Option<PathBuf> {
 
 fn health_sections(
     config: &LauncherConfig,
-    game_folder: &PathBuf,
+    game_folder: &Path,
     mods: &[InstalledMod],
 ) -> Vec<Vec<HealthCheckItem>> {
     vec![
@@ -117,7 +117,7 @@ fn patcher_health_for_status(status: &str) -> HealthCheckItem {
     }
 }
 
-fn mods_folder_health(game_folder: &PathBuf) -> HealthCheckItem {
+fn mods_folder_health(game_folder: &Path) -> HealthCheckItem {
     let mods_dir = game_folder.join("mods");
     if mods_dir.is_dir() {
         health_item(
@@ -177,21 +177,22 @@ fn dependencies_health(mods: &[InstalledMod]) -> HealthCheckItem {
 }
 
 fn loader_log_health(config: &LauncherConfig) -> HealthCheckItem {
-    latest_loader_log(config)
-        .map(|path| {
-            health_item(
-                "ok",
-                "Loader log",
-                &format!("Latest log: {}.", path.display()),
-            )
-        })
-        .unwrap_or_else(|| {
+    latest_loader_log(config).map_or_else(
+        || {
             health_item(
                 "warn",
                 "Loader log",
                 "No loader log found in mods/_oppw4/logs.",
             )
-        })
+        },
+        |path| {
+            health_item(
+                "ok",
+                "Loader log",
+                &format!("Latest log: {}.", path.display()),
+            )
+        },
+    )
 }
 
 fn missing_enabled_dependencies(mods: &[InstalledMod]) -> Vec<String> {

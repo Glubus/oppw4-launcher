@@ -72,7 +72,10 @@ mod tests {
     #[test]
     fn safe_mod_stem_removes_only_zip_extension_case_insensitively() {
         assert_eq!(safe_mod_stem("Cool Mod.ZIP"), "Cool Mod");
-        assert_eq!(safe_mod_stem("archive.zip.disabled"), "archive.zip.disabled");
+        assert_eq!(
+            safe_mod_stem("archive.zip.disabled"),
+            "archive.zip.disabled"
+        );
         assert_eq!(safe_mod_stem("   .zip"), "mod");
     }
 
@@ -80,7 +83,10 @@ mod tests {
     fn candidate_mod_path_uses_plain_name_for_zero_and_suffix_afterward() {
         let root = Path::new("/mods");
 
-        assert_eq!(candidate_mod_path(root, "law", 0), PathBuf::from("/mods/law.zip"));
+        assert_eq!(
+            candidate_mod_path(root, "law", 0),
+            PathBuf::from("/mods/law.zip")
+        );
         assert_eq!(
             candidate_mod_path(root, "law", 12),
             PathBuf::from("/mods/law-12.zip")

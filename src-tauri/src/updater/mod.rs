@@ -6,7 +6,7 @@ pub use types::{UpdateInfo, UpdateInstallResult};
 
 use crate::error::{UpdaterError, UpdaterResult};
 use sha2::{Digest, Sha256};
-use std::fs;
+use std::{fmt::Write as _, fs};
 use types::GithubRelease;
 
 const LAUNCHER_REPO: &str = "Glubus/oppw4-launcher";
@@ -67,10 +67,11 @@ fn verify_digest(bytes: &[u8], digest: Option<&str>) -> UpdaterResult<()> {
         return Ok(());
     };
     let expected = digest.strip_prefix("sha256:").unwrap_or(digest);
-    let actual = Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
+    let digest = Sha256::digest(bytes);
+    let mut actual = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut actual, "{byte:02x}").expect("writing to a String cannot fail");
+    }
     if expected.eq_ignore_ascii_case(&actual) {
         Ok(())
     } else {

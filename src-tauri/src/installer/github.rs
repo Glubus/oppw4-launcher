@@ -17,8 +17,12 @@ pub(crate) fn installable_asset(release: &GithubRelease) -> InstallerResult<&Git
 }
 
 pub(crate) fn is_installable_asset(name: &str) -> bool {
-    let name = name.to_lowercase();
-    name.ends_with(".zip") || name.ends_with(".dll")
+    std::path::Path::new(name)
+        .extension()
+        .and_then(|value| value.to_str())
+        .is_some_and(|extension| {
+            extension.eq_ignore_ascii_case("zip") || extension.eq_ignore_ascii_case("dll")
+        })
 }
 
 pub(crate) fn fetch_latest_release(repo: &str) -> InstallerResult<GithubRelease> {

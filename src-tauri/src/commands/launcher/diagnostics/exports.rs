@@ -10,7 +10,7 @@ use crate::{
 use std::{
     fs,
     io::{Seek, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
@@ -19,17 +19,17 @@ pub(crate) fn export_diagnostics(input: ExportDiagnosticsRequest) -> Result<(), 
     let config = read_config()?;
     let mods = inventory::installed_mods(&config);
     let health = status::build_health_check(&config);
-    export_diagnostics_zip(PathBuf::from(input.path), &config, &mods, &health)
+    export_diagnostics_zip(&PathBuf::from(input.path), &config, &mods, &health)
 }
 
 fn export_diagnostics_zip(
-    path: PathBuf,
+    path: &Path,
     config: &LauncherConfig,
     mods: &[InstalledMod],
     health: &[HealthCheckItem],
 ) -> Result<(), String> {
-    let file = fs::File::create(&path)
-        .map_err(|err| format!("Could not create diagnostics ZIP: {err}"))?;
+    let file =
+        fs::File::create(path).map_err(|err| format!("Could not create diagnostics ZIP: {err}"))?;
     let mut writer = ZipWriter::new(file);
     let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
     write_diagnostics_json_files(&mut writer, options, config, mods, health)?;
@@ -132,10 +132,10 @@ fn write_zip_text<W: Write + Seek>(
 
 fn now_label() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs().to_string())
-        .unwrap_or_else(|_| "0".to_string())
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or_else(
+        |_| "0".to_string(),
+        |duration| duration.as_secs().to_string(),
+    )
 }
 
 #[cfg(test)]
@@ -175,7 +175,7 @@ mod tests {
             super::super::health_item("warn", "Loader log", "Missing log."),
         ];
 
-        export_diagnostics_zip(export_path.clone(), &config, &mods, &health).unwrap();
+        export_diagnostics_zip(&export_path, &config, &mods, &health).unwrap();
 
         let file = fs::File::open(export_path).unwrap();
         let mut archive = ZipArchive::new(file).unwrap();

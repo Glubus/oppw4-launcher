@@ -40,7 +40,7 @@ pub(crate) fn installed_mod_from_path(path: &Path) -> Option<InstalledMod> {
     let kind = installed_mod_kind(path)?;
     let enabled = !name.ends_with(".disabled");
     let display_name = name.trim_end_matches(".disabled").to_string();
-    installed_mod_from_parts(path.to_path_buf(), display_name, kind, enabled)
+    Some(installed_mod_from_parts(path, display_name, kind, enabled))
 }
 
 fn should_skip_mod_entry(name: &str) -> bool {
@@ -58,14 +58,14 @@ fn installed_mod_kind(path: &Path) -> Option<String> {
 }
 
 fn installed_mod_from_parts(
-    path: PathBuf,
+    path: &Path,
     display_name: String,
     kind: String,
     enabled: bool,
-) -> Option<InstalledMod> {
-    let metadata = metadata_for_installed_mod(&path, &kind);
+) -> InstalledMod {
+    let metadata = metadata_for_installed_mod(path, &kind);
     let mod_key = keys::mod_key_for(&display_name, &metadata);
-    Some(InstalledMod {
+    InstalledMod {
         name: metadata.title.unwrap_or(display_name),
         kind,
         path: path.to_string_lossy().to_string(),
@@ -81,7 +81,7 @@ fn installed_mod_from_parts(
         dependencies: metadata.dependencies,
         changelog: metadata.changelog,
         cover_data_url: metadata.cover_data_url,
-    })
+    }
 }
 
 fn metadata_for_installed_mod(path: &Path, kind: &str) -> LocalModMetadata {
@@ -166,7 +166,9 @@ mod tests {
         let mods = installed_mods(&config);
 
         assert_eq!(
-            mods.iter().map(|mod_info| mod_info.name.as_str()).collect::<Vec<_>>(),
+            mods.iter()
+                .map(|mod_info| mod_info.name.as_str())
+                .collect::<Vec<_>>(),
             vec!["Alpha", "beta"]
         );
     }

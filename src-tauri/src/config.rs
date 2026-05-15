@@ -3,17 +3,12 @@ use std::{fs, path::PathBuf};
 
 pub const STEAM_APP_ID: &str = "1089090";
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum LaunchMode {
+    #[default]
     Steam,
     Executable,
-}
-
-impl Default for LaunchMode {
-    fn default() -> Self {
-        Self::Steam
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

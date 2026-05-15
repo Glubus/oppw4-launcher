@@ -7,6 +7,7 @@ use crate::{
 use std::{path::PathBuf, process::Command};
 
 #[tauri::command]
+#[allow(clippy::unnecessary_wraps)]
 pub(crate) fn detect_game() -> Result<Option<steam::DetectedGame>, String> {
     Ok(steam::detect_oppw4())
 }

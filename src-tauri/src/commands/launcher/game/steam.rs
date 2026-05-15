@@ -34,8 +34,8 @@ fn detect_oppw4_in_library(library: &Path) -> Option<DetectedGame> {
         return None;
     }
     Some(DetectedGame {
-        executable_path: find_game_executable(&game_folder).map(path_to_string),
-        game_folder: path_to_string(game_folder),
+        executable_path: find_game_executable(&game_folder).map(|path| path_to_string(&path)),
+        game_folder: path_to_string(&game_folder),
         source: "Steam".to_string(),
     })
 }
@@ -131,7 +131,7 @@ fn find_game_executable(game_folder: &Path) -> Option<PathBuf> {
     None
 }
 
-fn path_to_string(path: PathBuf) -> String {
+fn path_to_string(path: &Path) -> String {
     path.to_string_lossy().to_string()
 }
 

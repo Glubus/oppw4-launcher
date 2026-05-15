@@ -132,14 +132,16 @@ fn zip_entry_bytes<R: Read + Seek>(
 }
 
 fn cover_image_mime(path: &str) -> Result<&'static str, String> {
-    if path.ends_with(".png") {
-        Ok("image/png")
-    } else if path.ends_with(".jpg") || path.ends_with(".jpeg") {
-        Ok("image/jpeg")
-    } else if path.ends_with(".webp") {
-        Ok("image/webp")
-    } else {
-        Err("Unsupported cover image type.".to_string())
+    match Path::new(path)
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("png") => Ok("image/png"),
+        Some("jpg" | "jpeg") => Ok("image/jpeg"),
+        Some("webp") => Ok("image/webp"),
+        _ => Err("Unsupported cover image type.".to_string()),
     }
 }
 
@@ -229,10 +231,22 @@ mod tests {
 
     #[test]
     fn cover_image_mime_supports_png_jpg_jpeg_and_webp() {
-        assert_eq!(cover_image_mime(".metadata/cover.png").unwrap(), "image/png");
-        assert_eq!(cover_image_mime(".metadata/cover.jpg").unwrap(), "image/jpeg");
-        assert_eq!(cover_image_mime(".metadata/cover.jpeg").unwrap(), "image/jpeg");
-        assert_eq!(cover_image_mime(".metadata/cover.webp").unwrap(), "image/webp");
+        assert_eq!(
+            cover_image_mime(".metadata/cover.png").unwrap(),
+            "image/png"
+        );
+        assert_eq!(
+            cover_image_mime(".metadata/cover.jpg").unwrap(),
+            "image/jpeg"
+        );
+        assert_eq!(
+            cover_image_mime(".metadata/cover.jpeg").unwrap(),
+            "image/jpeg"
+        );
+        assert_eq!(
+            cover_image_mime(".metadata/cover.webp").unwrap(),
+            "image/webp"
+        );
         assert!(cover_image_mime(".metadata/cover.gif").is_err());
     }
 

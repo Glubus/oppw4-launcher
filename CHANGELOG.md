@@ -39,6 +39,7 @@
 - Move remaining Rust command DTOs and launcher/mod helpers out of lib.rs into focused modules.
 - Move Steam detection and Mods inventory/metadata helpers under feature command modules.
 - Move launcher game commands into the `commands/launcher/game` module directory.
+- Split hosted/external mod installation and mod enable toggling into smaller tested Rust helpers.
 
 #### Tests
 
@@ -47,3 +48,4 @@
 - Add Rust tests for launcher log formatting and diagnostics ZIP export content.
 - Add Rust tests for patcher ZIP/DLL installation, backup behavior, and unsafe archive path rejection.
 - Add Rust edge-case tests for updater digests/assets, Steam detection, diagnostics logs/status, mod toggles, installer restore, URL validation, and metadata parsing.
+- Run Rust formatting, unit tests, and `clippy::pedantic` cleanly.

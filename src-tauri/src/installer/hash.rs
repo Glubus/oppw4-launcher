@@ -3,6 +3,7 @@ use crate::error::{InstallerError, InstallerResult};
 use crate::installer::paths::safe_zip_path;
 use sha2::{Digest, Sha256};
 use std::{
+    fmt::Write as _,
     fs,
     io::{Cursor, Read},
     path::PathBuf,
@@ -23,7 +24,11 @@ pub fn installed_dinput8_sha256(config: &LauncherConfig) -> InstallerResult<Opti
 
 pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
-    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+    let mut hex = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut hex, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    hex
 }
 
 pub(crate) fn zip_dinput8_sha256(bytes: &[u8]) -> InstallerResult<String> {

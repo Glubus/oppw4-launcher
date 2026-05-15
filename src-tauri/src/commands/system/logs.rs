@@ -3,6 +3,7 @@ use crate::system_utils;
 use std::{fs, io::Write};
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 pub(crate) fn write_launcher_log(input: LauncherLogRequest) -> Result<(), String> {
     let safe_stamp = sanitize_log_stamp(&input.file_stamp);
     let safe_stamp = if safe_stamp.is_empty() {
