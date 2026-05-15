@@ -124,7 +124,13 @@
         if (prompt && !launcherUpdatePromptDismissed) showLauncherUpdatePrompt = true;
         if (!prompt) logger.success(`Launcher ${launcherUpdate.latestVersion} is available.`);
       } else if (!prompt) {
-        logger.success("Launcher is up to date.");
+        const current = launcherUpdate.currentVersion.replace(/^v/i, "");
+        const latest = launcherUpdate.latestVersion.replace(/^v/i, "");
+        if (current !== latest) {
+          logger.success(`Launcher build ${launcherUpdate.currentVersion} differs from GitHub release ${launcherUpdate.latestVersion}; no installable asset is available.`);
+        } else {
+          logger.success(`Launcher build matches GitHub release ${launcherUpdate.latestVersion}.`);
+        }
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : typeof err === "string" ? err : "Could not check launcher update";
@@ -206,7 +212,7 @@
       {:else if activePanel === "profiles"}
         <LauncherProfilesPanel profiles={config.modProfiles} {installedMods} bind:profileName {busy} onCreateWithStyle={createProfile} onSaveEnabledWithStyle={saveEnabledProfile} onOpen={openProfile} onApply={applyProfile} onDelete={deleteProfile} />
       {:else if activePanel === "settings"}
-        <LauncherSettingsPanel bind:config {detectedGame} {hasGameFolder} {healthItems} {launcherUpdate} {checkingLauncherUpdate} {installingLauncherUpdate} {busy} onUseDetected={() => nativeActions.useDetectedGame(ctx)} onSetLaunchMode={(mode) => nativeActions.setLaunchMode(ctx, mode)} onChooseGameFolder={() => nativeActions.chooseGameFolder(ctx)} onChooseExecutable={() => nativeActions.chooseExecutable(ctx)} onRepositoryChange={() => runtime.saveAndRefresh("Repository saved.")} onRunHealth={() => runtime.runHealthCheck()} onExportDiagnostics={() => nativeActions.exportDiagnostics(ctx)} onDebugLogsChange={() => runtime.saveAndRefresh(config.debugLogs ? "Debug logs enabled." : "Debug logs disabled.")} onCheckLauncherUpdate={() => checkLauncherUpdate(false)} onInstallLauncherUpdate={installLauncherUpdate} />
+        <LauncherSettingsPanel bind:config {detectedGame} {hasGameFolder} {healthItems} {modloaderStatus} {latestRelease} {needsPatcherUpdate} {localModloaderSha256} {remoteModloaderSha256} {launcherUpdate} {checkingLauncherUpdate} {installingLauncherUpdate} {busy} onUseDetected={() => nativeActions.useDetectedGame(ctx)} onSetLaunchMode={(mode) => nativeActions.setLaunchMode(ctx, mode)} onChooseGameFolder={() => nativeActions.chooseGameFolder(ctx)} onChooseExecutable={() => nativeActions.chooseExecutable(ctx)} onRepositoryChange={() => runtime.saveAndRefresh("Repository saved.")} onRunHealth={() => runtime.runHealthCheck()} onExportDiagnostics={() => nativeActions.exportDiagnostics(ctx)} onDebugLogsChange={() => runtime.saveAndRefresh(config.debugLogs ? "Debug logs enabled." : "Debug logs disabled.")} onCheckLauncherUpdate={() => checkLauncherUpdate(false)} onInstallLauncherUpdate={installLauncherUpdate} />
       {:else}
         <LauncherChangelogPanel {latestRelease} />
       {/if}

@@ -15,3 +15,5 @@
 - Refactor Rust installer code into focused modules with typed errors and result aliases.
 - Add launcher update checks from GitHub releases with a startup prompt and Settings controls.
 - Split Tauri commands into feature-scoped command modules.
+- Add secondary Settings tabs for Game, Patcher, and Launcher status.
+- Move command implementations out of lib.rs into feature command modules.
