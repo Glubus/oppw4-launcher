@@ -104,6 +104,12 @@ export async function exportDiagnostics(ctx: LauncherActionContext) {
   if (typeof selected !== "string") return;
   await ctx.runBusy(async () => {
     await invoke("export_diagnostics", { input: { path: selected } });
+    try {
+      await invoke("reveal_path_in_folder", { input: { path: selected } });
+    } catch {
+      ctx.setMessage("Diagnostics exported, but the file browser could not be opened.");
+      return;
+    }
     ctx.setMessage("Diagnostics exported.");
   }, "Could not export diagnostics");
 }

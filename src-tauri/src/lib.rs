@@ -111,6 +111,12 @@ struct RevealModRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct RevealPathRequest {
+  path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RemoveModRequest {
   path: String,
 }
@@ -459,6 +465,15 @@ fn installed_mod_for_skin(input: InstalledModLookupRequest) -> Result<Option<Ins
 #[tauri::command]
 fn reveal_mod_in_folder(input: RevealModRequest) -> Result<(), String> {
   let path = checked_mod_path(input.path)?;
+  reveal_path(&path)
+}
+
+#[tauri::command]
+fn reveal_path_in_folder(input: RevealPathRequest) -> Result<(), String> {
+  let path = PathBuf::from(input.path);
+  if !path.exists() {
+    return Err("Selected path does not exist.".to_string());
+  }
   reveal_path(&path)
 }
 
@@ -1028,6 +1043,7 @@ pub fn run() {
       install_hosted_mod,
       installed_mod_for_skin,
       reveal_mod_in_folder,
+      reveal_path_in_folder,
       remove_installed_mod,
       open_external_url,
       api::api_request

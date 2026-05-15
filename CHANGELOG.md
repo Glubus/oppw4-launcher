@@ -7,3 +7,4 @@
 - Add profile search and availability filters.
 - Align Mods and Profiles header actions and simplify filter separators.
 - Make Settings easier to scan with clearer install, launch method, patcher source, and diagnostics sections.
+- Reveal the exported diagnostics ZIP in the file browser after export.
