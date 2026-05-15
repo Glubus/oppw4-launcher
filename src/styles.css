@@ -88,6 +88,10 @@ body {
   color: hsl(var(--foreground));
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
 button,
 input,
 select,

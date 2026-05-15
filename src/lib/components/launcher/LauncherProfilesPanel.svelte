@@ -28,7 +28,7 @@
   </div>
 
   {#if profiles.length}
-    <section class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+    <section class="grid w-full gap-5 md:grid-cols-2 xl:grid-cols-3">
       {#each profiles as profile}
         <LauncherProfileCard
           {profile}

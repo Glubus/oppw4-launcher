@@ -184,14 +184,14 @@
 
 <AppHeader />
 
-<main class="mx-auto grid max-w-7xl gap-5 px-4 py-6">
+<main class="mx-auto grid w-full max-w-7xl gap-5 px-4 py-6">
   <LauncherHero {currentRelease} {latestReleaseLabel} {latestReleaseDate} {modloaderStatus} {updateLabel} {isDesktop} {busy} {loading} {hasGameFolder} {canLaunch} hasLatestRelease={Boolean(latestRelease)} onInstall={() => nativeActions.installModloader(ctx)} onLaunch={() => nativeActions.launchGame(ctx)} onCheck={() => nativeActions.checkModloaderIntegrity(ctx)} />
 
   {#if !isDesktop}
     <DesktopOnlyCard />
   {:else}
     <LauncherMessages {error} {message} />
-    <Card class="p-3">
+    <Card class="w-full p-3">
       <LauncherTabs {activePanel} onSelect={(panel) => (activePanel = panel)} />
 
       {#if activePanel === "mods"}

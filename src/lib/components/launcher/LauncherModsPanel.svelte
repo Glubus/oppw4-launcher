@@ -122,7 +122,7 @@
   {#if !hasGameFolder}
     <p class="rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">Select a game folder in Settings to scan installed mods.</p>
   {:else if filteredInstalledMods.length}
-    <section class="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+    <section class="mt-5 grid w-full gap-5 md:grid-cols-2 xl:grid-cols-3">
       {#each filteredInstalledMods as mod}
         <InstalledModCard {mod} {profiles} {updateSkins} {busy} onToggle={onToggleMod} onRemove={onRemoveMod} onAddToProfile={onAddToProfile} />
       {/each}
