@@ -32,6 +32,7 @@
 #### Fixed
 
 - Throttle automatic launcher update checks and show a clearer GitHub rate-limit message.
+- Prevent a Windows command prompt from opening when starting the launcher.
 
 ### Developer
 
