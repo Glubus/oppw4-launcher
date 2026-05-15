@@ -35,20 +35,6 @@
     {#if showStatus}
       <p class="mt-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">{modloaderStatus}</p>
     {/if}
-    <ol class="mt-4 grid max-w-3xl gap-2 text-sm sm:grid-cols-3">
-      <li class="rounded-md border border-white/10 bg-background/45 px-3 py-2">
-        <span class="font-black text-primary">1.</span>
-        <span class="ml-1 font-bold text-foreground">Select your game folder</span>
-      </li>
-      <li class="rounded-md border border-white/10 bg-background/45 px-3 py-2">
-        <span class="font-black text-primary">2.</span>
-        <span class="ml-1 font-bold text-foreground">Install or update the patcher</span>
-      </li>
-      <li class="rounded-md border border-white/10 bg-background/45 px-3 py-2">
-        <span class="font-black text-primary">3.</span>
-        <span class="ml-1 font-bold text-foreground">Install mods here; web links open in your browser</span>
-      </li>
-    </ol>
   </div>
   <div class="flex flex-wrap gap-2">
     <Button variant="outline" size="lg" disabled={!isDesktop || busy || !hasGameFolder} on:click={onCheck}>Check patcher</Button>
