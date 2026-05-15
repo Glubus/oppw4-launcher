@@ -44,11 +44,9 @@
     : false;
   $: launcherUpdateText = launcherUpdate?.available
     ? `Version ${launcherUpdate.latestVersion} is available.`
-    : launcherUpdate && launcherVersionsDiffer
-      ? `Current build ${launcherUpdate.currentVersion} differs from GitHub release ${launcherUpdate.latestVersion}, but no installable asset is available for this platform.`
-      : launcherUpdate
-        ? `Current build matches GitHub release ${launcherUpdate.latestVersion}.`
-        : "Check GitHub releases for a launcher build.";
+    : launcherUpdate
+      ? `Current build matches GitHub release ${launcherUpdate.latestVersion}.`
+      : "Check GitHub releases for a launcher build.";
   $: patcherStatusTone = modloaderStatus.toLowerCase().includes("installed") && !needsPatcherUpdate
     ? "bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.16)]"
     : needsPatcherUpdate
@@ -193,7 +191,13 @@
         <div class="grid min-h-16 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
           <div>
             <h3 class="font-black">Launcher update</h3>
-            <p class="mt-1 text-sm text-muted-foreground">{launcherUpdateText}</p>
+            <p class="mt-1 text-sm text-muted-foreground">
+              {#if launcherUpdate && launcherVersionsDiffer && !launcherUpdate.available}
+                Current build {launcherUpdate.currentVersion} differs from GitHub release {launcherUpdate.latestVersion}, but <span class="font-black text-foreground">no installable asset is available</span> for this platform.
+              {:else}
+                {launcherUpdateText}
+              {/if}
+            </p>
           </div>
           <div class="flex flex-wrap gap-2 sm:justify-end">
             <Button variant="outline" disabled={checkingLauncherUpdate || installingLauncherUpdate} on:click={onCheckLauncherUpdate}>{checkingLauncherUpdate ? "Checking..." : "Check update"}</Button>
