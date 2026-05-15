@@ -61,6 +61,8 @@ pub struct LauncherConfig {
   pub last_launch_at: Option<String>,
   #[serde(default)]
   pub mod_profiles: Vec<ModProfile>,
+  #[serde(default)]
+  pub debug_logs: bool,
 }
 
 impl Default for LauncherConfig {
@@ -77,6 +79,7 @@ impl Default for LauncherConfig {
       installed_files: Vec::new(),
       last_launch_at: None,
       mod_profiles: Vec::new(),
+      debug_logs: false,
     }
   }
 }

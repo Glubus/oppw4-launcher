@@ -9,4 +9,5 @@
 - Make Settings easier to scan with clearer install, launch method, patcher source, and diagnostics sections.
 - Reveal the exported diagnostics ZIP in the file browser after export.
 - Show launcher success and error feedback as toasts instead of inline alert panels.
-- Add a Settings activity log for recent launcher successes and errors.
+- Write important launcher success and error logs to logs/{date}-{time}.log next to the executable.
+- Add a Settings toggle for verbose debug launcher logs.

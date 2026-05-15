@@ -39,14 +39,7 @@
   let selectedProfile: ModProfile | null = null;
   let healthItems: HealthCheckItem[] = [];
   let lastUpdateFingerprint = "";
-  let launcherLogs: LauncherLogEntry[] = [];
-
-  type LauncherLogEntry = {
-    id: string;
-    time: string;
-    level: "success" | "error";
-    message: string;
-  };
+  const logFileStamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+$/, "").replace("T", "-");
 
   $: hasGameFolder = Boolean(config.gameFolder);
   $: canLaunch = config.launchMode === "steam" || Boolean(config.gameExecutablePath);
@@ -67,7 +60,7 @@
     getConfig: () => config, setConfig: (value) => (config = value), getDetectedGame: () => detectedGame, getInstalledMods: () => installedMods,
     getProfileName: () => profileName, setProfileName: (value) => (profileName = value), getSelectedProfile: () => selectedProfile, setSelectedProfile: (value) => (selectedProfile = value),
     getUpdateSkins: () => updateSkins, setUpdateSkins: (value) => (updateSkins = value), setCheckingUpdates: (value) => (checkingUpdates = value), setUpdatingAll: (value) => (updatingAll = value),
-    setError: notifyError, setMessage: notifySuccess, load: () => load(), save: () => save(), saveAndRefresh: (success) => saveAndRefresh(success), runBusy: (action, fallback) => runBusy(action, fallback)
+    setError: notifyError, setMessage: notifySuccess, logDebug: writeDebugLog, load: () => load(), save: () => save(), saveAndRefresh: (success) => saveAndRefresh(success), runBusy: (action, fallback) => runBusy(action, fallback)
   };
 
   onMount(() => {
@@ -103,6 +96,7 @@
       needsPatcherUpdate = state.needsPatcherUpdate;
       localModloaderSha256 = state.localModloaderSha256 ?? null;
       remoteModloaderSha256 = state.remoteModloaderSha256 ?? null;
+      writeDebugLog(`state loaded; mods=${state.installedMods?.length ?? 0}; profiles=${state.config.modProfiles.length}; modloader=${state.modloaderStatus}; release=${state.config.modloaderRelease ?? "none"}`);
     } catch (err) {
       notifyError(errorMessage(err, "Could not load launcher state"));
     } finally {
@@ -112,6 +106,7 @@
 
   async function save() {
     config = await invoke<LauncherConfig>("save_launcher_config", { config });
+    writeDebugLog(`config saved; launchMode=${config.launchMode}; gameFolder=${config.gameFolder ?? "none"}; debugLogs=${config.debugLogs}`);
   }
 
   async function saveAndRefresh(success: string) {
@@ -147,25 +142,29 @@
   function notifySuccess(value: string) {
     if (!value) return;
     toastStore.push(value, "success");
-    pushLauncherLog("success", value);
+    writeLauncherLog("success", value);
   }
 
   function notifyError(value: string) {
     if (!value) return;
     toastStore.push(value, "error");
-    pushLauncherLog("error", value);
+    writeLauncherLog("error", value);
   }
 
-  function pushLauncherLog(level: LauncherLogEntry["level"], message: string) {
-    launcherLogs = [
-      {
-        id: crypto.randomUUID(),
-        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+  function writeDebugLog(message: string) {
+    if (config.debugLogs) writeLauncherLog("debug", message, true);
+  }
+
+  function writeLauncherLog(level: "success" | "error" | "debug", message: string, debug = false) {
+    if (!isDesktop) return;
+    void invoke("write_launcher_log", {
+      input: {
         level,
-        message
-      },
-      ...launcherLogs
-    ].slice(0, 12);
+        message,
+        fileStamp: logFileStamp,
+        debug
+      }
+    });
   }
 
   function createProfile(icon: string, color: string) {
@@ -221,7 +220,7 @@
       {:else if activePanel === "profiles"}
         <LauncherProfilesPanel profiles={config.modProfiles} {installedMods} bind:profileName {busy} onCreateWithStyle={createProfile} onSaveEnabledWithStyle={saveEnabledProfile} onOpen={openProfile} onApply={applyProfile} onDelete={deleteProfile} />
       {:else if activePanel === "settings"}
-        <LauncherSettingsPanel bind:config {detectedGame} {hasGameFolder} {healthItems} logs={launcherLogs} {busy} onUseDetected={() => nativeActions.useDetectedGame(ctx)} onSetLaunchMode={(mode) => nativeActions.setLaunchMode(ctx, mode)} onChooseGameFolder={() => nativeActions.chooseGameFolder(ctx)} onChooseExecutable={() => nativeActions.chooseExecutable(ctx)} onRepositoryChange={() => saveAndRefresh("Repository saved.")} onRunHealth={runHealthCheck} onExportDiagnostics={() => nativeActions.exportDiagnostics(ctx)} />
+        <LauncherSettingsPanel bind:config {detectedGame} {hasGameFolder} {healthItems} {busy} onUseDetected={() => nativeActions.useDetectedGame(ctx)} onSetLaunchMode={(mode) => nativeActions.setLaunchMode(ctx, mode)} onChooseGameFolder={() => nativeActions.chooseGameFolder(ctx)} onChooseExecutable={() => nativeActions.chooseExecutable(ctx)} onRepositoryChange={() => saveAndRefresh("Repository saved.")} onRunHealth={runHealthCheck} onExportDiagnostics={() => nativeActions.exportDiagnostics(ctx)} onDebugLogsChange={() => saveAndRefresh(config.debugLogs ? "Debug logs enabled." : "Debug logs disabled.")} />
       {:else}
         <LauncherChangelogPanel {latestRelease} />
       {/if}

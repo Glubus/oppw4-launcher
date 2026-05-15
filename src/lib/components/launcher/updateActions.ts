@@ -6,6 +6,7 @@ import type { InstalledMod } from "./types";
 
 export async function checkInstalledUpdates(ctx: LauncherActionContext, mods: InstalledMod[]) {
   ctx.setCheckingUpdates(true);
+  ctx.logDebug(`checking installed updates; mods=${mods.length}`);
   const nextUpdates: Record<string, Skin> = {};
   try {
     await Promise.all(mods.map(async (mod) => {
@@ -17,6 +18,7 @@ export async function checkInstalledUpdates(ctx: LauncherActionContext, mods: In
       } catch {}
     }));
     ctx.setUpdateSkins(nextUpdates);
+    ctx.logDebug(`installed update check complete; updates=${Object.keys(nextUpdates).length}`);
   } finally {
     ctx.setCheckingUpdates(false);
   }
@@ -29,6 +31,7 @@ export async function updateAllInstalledMods(ctx: LauncherActionContext) {
   if (!updates.length) return;
 
   ctx.setUpdatingAll(true);
+  ctx.logDebug(`updating all installed mods; updates=${updates.length}`);
   ctx.setError("");
   ctx.setMessage("");
   try {

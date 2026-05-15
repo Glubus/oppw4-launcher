@@ -29,6 +29,7 @@ export type LauncherConfig = {
   installedFiles: InstalledFile[];
   lastLaunchAt?: string | null;
   modProfiles: ModProfile[];
+  debugLogs: boolean;
 };
 
 export const defaultLauncherConfig: LauncherConfig = {
@@ -42,7 +43,8 @@ export const defaultLauncherConfig: LauncherConfig = {
   latestModloaderSha256CheckedAt: null,
   installedFiles: [],
   lastLaunchAt: null,
-  modProfiles: []
+  modProfiles: [],
+  debugLogs: false
 };
 
 export type DetectedGame = {

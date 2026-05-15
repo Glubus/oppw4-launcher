@@ -9,7 +9,6 @@
   export let detectedGame: DetectedGame | null = null;
   export let hasGameFolder = false;
   export let healthItems: HealthCheckItem[] = [];
-  export let logs: { id: string; time: string; level: "success" | "error"; message: string }[] = [];
   export let busy = false;
   export let onUseDetected: () => void = () => {};
   export let onSetLaunchMode: (mode: LaunchMode) => void = () => {};
@@ -18,6 +17,7 @@
   export let onRepositoryChange: () => void = () => {};
   export let onRunHealth: () => void = () => {};
   export let onExportDiagnostics: () => void = () => {};
+  export let onDebugLogsChange: () => void = () => {};
 </script>
 
 <div class="grid gap-5 p-2 pt-5">
@@ -92,23 +92,17 @@
   <LauncherHealthPanel items={healthItems} {busy} onRun={onRunHealth} onExport={onExportDiagnostics} />
 
   <section class="grid gap-3">
-    <div>
-      <h3 class="font-black">Activity log</h3>
-      <p class="mt-1 text-sm text-muted-foreground">Recent launcher actions and errors.</p>
-    </div>
-
-    {#if logs.length}
-      <div class="grid gap-2">
-        {#each logs as item}
-          <div class="grid gap-1 rounded-md border border-white/10 bg-background/45 p-3 text-sm sm:grid-cols-[84px_90px_minmax(0,1fr)] sm:items-center">
-            <span class="font-mono text-xs text-muted-foreground">{item.time}</span>
-            <span class="w-fit rounded-full border px-2 py-0.5 text-[0.68rem] font-black uppercase tracking-wide {item.level === 'success' ? 'border-emerald-300/30 bg-emerald-400/10 text-emerald-100' : 'border-red-300/35 bg-red-400/10 text-red-100'}">{item.level}</span>
-            <span class="min-w-0 break-words text-muted-foreground">{item.message}</span>
-          </div>
-        {/each}
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h3 class="font-black">Launcher logs</h3>
+        <p class="mt-1 text-sm text-muted-foreground">Important actions are written next to the launcher executable in logs/. Enable debug logs for detailed traces.</p>
       </div>
-    {:else}
-      <p class="rounded-md border border-white/10 bg-background/45 p-3 text-sm text-muted-foreground">No launcher activity yet.</p>
-    {/if}
+      <Button variant={config.debugLogs ? "default" : "outline"} on:click={() => {
+        config.debugLogs = !config.debugLogs;
+        onDebugLogsChange();
+      }}>
+        {config.debugLogs ? "Disable debug logs" : "Enable debug logs"}
+      </Button>
+    </div>
   </section>
 </div>

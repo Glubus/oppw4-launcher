@@ -16,6 +16,7 @@ export type LauncherActionContext = {
   setUpdatingAll: (value: boolean) => void;
   setError: (value: string) => void;
   setMessage: (value: string) => void;
+  logDebug: (message: string) => void;
   load: () => Promise<void>;
   save: () => Promise<void>;
   saveAndRefresh: (success: string) => Promise<void>;
