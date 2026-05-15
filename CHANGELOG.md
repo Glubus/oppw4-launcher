@@ -18,3 +18,6 @@
 - Add secondary Settings tabs for Game, Patcher, and Launcher status.
 - Move command implementations out of lib.rs into feature command modules.
 - Simplify Patcher settings status with a compact indicator.
+- Add a Steam launch executable override with disabled Game install controls until enabled.
+- Throttle automatic launcher update checks and show a clearer GitHub rate-limit message.
+- Clarify launcher update status when GitHub has a different release but no installable asset.
