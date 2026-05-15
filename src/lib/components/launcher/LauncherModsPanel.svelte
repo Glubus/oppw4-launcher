@@ -93,7 +93,7 @@
     </div>
   </div>
 
-  <section class="relative z-30 grid min-w-0 gap-3 overflow-visible rounded-lg border border-white/10 bg-card/86 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-md sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_repeat(4,minmax(0,150px))_minmax(0,90px)]">
+  <section class="relative z-30 grid min-w-0 gap-3 overflow-visible border-b border-white/10 pb-5 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_repeat(4,minmax(0,150px))_minmax(0,90px)]">
     <label class="input input-bordered flex min-w-0 items-center gap-2 bg-background/60">
       <span class="font-black text-primary">⌕</span>
       <input class="min-w-0" bind:value={modSearch} placeholder="Search mod, character, version..." />
