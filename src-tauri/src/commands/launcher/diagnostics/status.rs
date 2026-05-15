@@ -1,6 +1,6 @@
+use super::{health_item, logs::latest_loader_log, HealthCheckItem};
 use crate::{
     config::LauncherConfig,
-    diagnostics::{health_item, latest_loader_log, HealthCheckItem},
     installer,
     mod_inventory::{installed_dependency_keys, installed_mods},
     models::InstalledMod,

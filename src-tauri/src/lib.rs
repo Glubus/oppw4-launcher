@@ -1,7 +1,6 @@
 mod api;
 mod commands;
 mod config;
-mod diagnostics;
 mod error;
 mod installer;
 mod mod_inventory;
