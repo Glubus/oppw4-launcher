@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.1 - 2026-05-15
+## 0.1.1 "Sunny Side Up" - 2026-05-15
 
 ### User-facing
 
