@@ -14,3 +14,4 @@
 - Split launcher runtime and logging helpers out of LauncherPage.
 - Refactor Rust installer code into focused modules with typed errors and result aliases.
 - Add launcher update checks from GitHub releases with a startup prompt and Settings controls.
+- Split Tauri commands into feature-scoped command modules.

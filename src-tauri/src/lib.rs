@@ -1,4 +1,5 @@
 mod api;
+mod commands;
 mod config;
 mod diagnostics;
 mod error;
@@ -26,7 +27,7 @@ const API_BASE: &str = "https://oppw4.prism.am/api";
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct LauncherState {
+pub(crate) struct LauncherState {
     config: LauncherConfig,
     detected_game: Option<steam::DetectedGame>,
     modloader_status: String,
@@ -74,33 +75,33 @@ struct LocalModMetadata {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ToggleModRequest {
+pub(crate) struct ToggleModRequest {
     path: String,
     enabled: bool,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ImportExternalZipRequest {
+pub(crate) struct ImportExternalZipRequest {
     path: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ApplyProfileRequest {
+pub(crate) struct ApplyProfileRequest {
     profile_id: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ApplyMetadataRequest {
+pub(crate) struct ApplyMetadataRequest {
     skin_id: String,
     zip_path: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct InstallHostedModRequest {
+pub(crate) struct InstallHostedModRequest {
     file_id: String,
     file_name: String,
     #[serde(default)]
@@ -109,38 +110,38 @@ struct InstallHostedModRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct InstalledModLookupRequest {
+pub(crate) struct InstalledModLookupRequest {
     mod_id: Option<String>,
     slug: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RevealModRequest {
+pub(crate) struct RevealModRequest {
     path: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RevealPathRequest {
+pub(crate) struct RevealPathRequest {
     path: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RemoveModRequest {
+pub(crate) struct RemoveModRequest {
     path: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ExportDiagnosticsRequest {
+pub(crate) struct ExportDiagnosticsRequest {
     path: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct LauncherLogRequest {
+pub(crate) struct LauncherLogRequest {
     level: String,
     message: String,
     file_stamp: String,
@@ -150,12 +151,11 @@ struct LauncherLogRequest {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct InstallHostedModResult {
+pub(crate) struct InstallHostedModResult {
     mod_info: InstalledMod,
     already_up_to_date: bool,
 }
 
-#[tauri::command]
 fn get_launcher_state() -> Result<LauncherState, String> {
     let mut config = read_config()?;
     let detected_game = steam::detect_oppw4();
@@ -192,18 +192,15 @@ fn get_launcher_state() -> Result<LauncherState, String> {
     })
 }
 
-#[tauri::command]
 fn save_launcher_config(config: LauncherConfig) -> Result<LauncherConfig, String> {
     write_config(&config)?;
     Ok(config)
 }
 
-#[tauri::command]
 fn detect_game() -> Result<Option<steam::DetectedGame>, String> {
     Ok(steam::detect_oppw4())
 }
 
-#[tauri::command]
 fn launch_game() -> Result<(), String> {
     let mut config = read_config()?;
     match config.launch_mode {
@@ -231,7 +228,6 @@ fn launch_game() -> Result<(), String> {
     write_config(&config)
 }
 
-#[tauri::command]
 fn install_modloader() -> CommandResult<LauncherConfig> {
     let mut config = read_config()?;
     installer::install_from_latest_release(&mut config).map_err(|err| err.to_string())?;
@@ -239,7 +235,6 @@ fn install_modloader() -> CommandResult<LauncherConfig> {
     Ok(config)
 }
 
-#[tauri::command]
 fn restore_modloader() -> CommandResult<LauncherConfig> {
     let mut config = read_config()?;
     installer::restore(&mut config).map_err(|err| err.to_string())?;
@@ -247,7 +242,6 @@ fn restore_modloader() -> CommandResult<LauncherConfig> {
     Ok(config)
 }
 
-#[tauri::command]
 fn check_modloader_integrity() -> CommandResult<LauncherConfig> {
     let mut config = read_config()?;
     installer::refresh_latest_modloader_hash(&mut config, true).map_err(|err| err.to_string())?;
@@ -255,13 +249,11 @@ fn check_modloader_integrity() -> CommandResult<LauncherConfig> {
     Ok(config)
 }
 
-#[tauri::command]
 fn run_health_check() -> Result<Vec<HealthCheckItem>, String> {
     let config = read_config()?;
     Ok(build_health_check(&config))
 }
 
-#[tauri::command]
 fn export_diagnostics(input: ExportDiagnosticsRequest) -> Result<(), String> {
     let config = read_config()?;
     let mods = installed_mods(&config);
@@ -269,13 +261,11 @@ fn export_diagnostics(input: ExportDiagnosticsRequest) -> Result<(), String> {
     export_diagnostics_zip(PathBuf::from(input.path), &config, &mods, &health)
 }
 
-#[tauri::command]
 fn set_mod_enabled(input: ToggleModRequest) -> Result<(), String> {
     let config = read_config()?;
     set_mod_path_enabled(&config, &input.path, input.enabled)
 }
 
-#[tauri::command]
 fn import_external_zip(input: ImportExternalZipRequest) -> Result<InstalledMod, String> {
     let config = read_config()?;
     let game_folder = config
@@ -305,7 +295,6 @@ fn import_external_zip(input: ImportExternalZipRequest) -> Result<InstalledMod, 
     installed_mod_from_path(&target).ok_or_else(|| "Imported ZIP could not be scanned.".to_string())
 }
 
-#[tauri::command]
 fn apply_mod_profile(input: ApplyProfileRequest) -> Result<(), String> {
     let config = read_config()?;
     let profile = config
@@ -376,7 +365,6 @@ fn set_mod_path_enabled(
     Ok(())
 }
 
-#[tauri::command]
 fn apply_metadata_to_zip(input: ApplyMetadataRequest) -> Result<(), String> {
     let target_path = PathBuf::from(input.zip_path);
     if !target_path.exists() {
@@ -413,7 +401,6 @@ fn apply_metadata_to_zip(input: ApplyMetadataRequest) -> Result<(), String> {
     inject_metadata_entries(&target_path, metadata_entries)
 }
 
-#[tauri::command]
 fn install_hosted_mod(input: InstallHostedModRequest) -> Result<InstallHostedModResult, String> {
     let config = read_config()?;
     let game_folder = config
@@ -513,7 +500,6 @@ fn install_hosted_mod(input: InstallHostedModRequest) -> Result<InstallHostedMod
     })
 }
 
-#[tauri::command]
 fn installed_mod_for_skin(
     input: InstalledModLookupRequest,
 ) -> Result<Option<InstalledMod>, String> {
@@ -530,13 +516,11 @@ fn installed_mod_for_skin(
     }))
 }
 
-#[tauri::command]
 fn reveal_mod_in_folder(input: RevealModRequest) -> Result<(), String> {
     let path = checked_mod_path(input.path)?;
     reveal_path(&path)
 }
 
-#[tauri::command]
 fn reveal_path_in_folder(input: RevealPathRequest) -> Result<(), String> {
     let path = PathBuf::from(input.path);
     if !path.exists() {
@@ -545,7 +529,6 @@ fn reveal_path_in_folder(input: RevealPathRequest) -> Result<(), String> {
     reveal_path(&path)
 }
 
-#[tauri::command]
 fn write_launcher_log(input: LauncherLogRequest) -> Result<(), String> {
     let safe_stamp = input
         .file_stamp
@@ -583,17 +566,14 @@ fn write_launcher_log(input: LauncherLogRequest) -> Result<(), String> {
         .map_err(|err| format!("Could not write launcher log: {err}"))
 }
 
-#[tauri::command]
 fn check_launcher_update() -> CommandResult<updater::UpdateInfo> {
     updater::check().map_err(|err| err.to_string())
 }
 
-#[tauri::command]
 fn install_launcher_update() -> CommandResult<updater::UpdateInstallResult> {
     updater::install_latest().map_err(|err| err.to_string())
 }
 
-#[tauri::command]
 fn remove_installed_mod(input: RemoveModRequest) -> Result<(), String> {
     let path = checked_mod_path(input.path)?;
     if path.is_dir() {
@@ -604,7 +584,6 @@ fn remove_installed_mod(input: RemoveModRequest) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
 fn open_external_url(url: String) -> Result<(), String> {
     if !(url.starts_with("https://") || url.starts_with("http://")) {
         return Err("Only web URLs can be opened externally.".to_string());
@@ -1297,28 +1276,28 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
-            get_launcher_state,
-            save_launcher_config,
-            detect_game,
-            launch_game,
-            install_modloader,
-            restore_modloader,
-            check_modloader_integrity,
-            run_health_check,
-            export_diagnostics,
-            set_mod_enabled,
-            import_external_zip,
-            apply_mod_profile,
-            apply_metadata_to_zip,
-            install_hosted_mod,
-            installed_mod_for_skin,
-            reveal_mod_in_folder,
-            reveal_path_in_folder,
-            write_launcher_log,
-            check_launcher_update,
-            install_launcher_update,
-            remove_installed_mod,
-            open_external_url,
+            commands::launcher::state::get_launcher_state,
+            commands::launcher::state::save_launcher_config,
+            commands::launcher::game::detect_game,
+            commands::launcher::game::launch_game,
+            commands::launcher::patcher::install_modloader,
+            commands::launcher::patcher::restore_modloader,
+            commands::launcher::patcher::check_modloader_integrity,
+            commands::launcher::diagnostics::run_health_check,
+            commands::launcher::diagnostics::export_diagnostics,
+            commands::mods::folder::set_mod_enabled,
+            commands::mods::install::import_external_zip,
+            commands::mods::profiles::apply_mod_profile,
+            commands::mods::metadata::apply_metadata_to_zip,
+            commands::mods::install::install_hosted_mod,
+            commands::mods::install::installed_mod_for_skin,
+            commands::mods::folder::reveal_mod_in_folder,
+            commands::mods::folder::remove_installed_mod,
+            commands::system::paths::reveal_path_in_folder,
+            commands::system::logs::write_launcher_log,
+            commands::system::updates::check_launcher_update,
+            commands::system::updates::install_launcher_update,
+            commands::system::links::open_external_url,
             api::api_request
         ])
         .run(tauri::generate_context!())
