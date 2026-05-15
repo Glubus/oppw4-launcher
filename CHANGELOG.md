@@ -4,17 +4,20 @@
 
 ### User-facing
 
-#### Added
+#### Features
 
 - Open external HTTP(S) links and redirect/download URLs in the user's default browser when running inside Tauri.
 - Add profile search and availability filters.
-- Reveal the exported diagnostics ZIP in the file browser after export.
-- Write important launcher success and error logs to logs/{date}-{time}.log next to the executable.
-- Add a Settings toggle for verbose debug launcher logs.
 - Add launcher update checks from GitHub releases with a startup prompt and Settings controls.
 - Add secondary Settings tabs for Game, Patcher, and Launcher status.
 - Add a Steam launch executable override with disabled Game install controls until enabled.
 - Add potential overlap warnings before launch with an option to disable future warnings.
+
+#### Added
+
+- Reveal the exported diagnostics ZIP in the file browser after export.
+- Write important launcher success and error logs to logs/{date}-{time}.log next to the executable.
+- Add a Settings toggle for verbose debug launcher logs.
 
 #### Changed
 
