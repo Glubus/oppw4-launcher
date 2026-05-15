@@ -1,16 +1,24 @@
 use crate::error::{UpdaterError, UpdaterResult};
 use crate::updater::types::GithubRelease;
+use reqwest::StatusCode;
 
 pub(crate) fn fetch_latest_release(repo: &str) -> UpdaterResult<GithubRelease> {
     let url = format!("https://api.github.com/repos/{repo}/releases/latest");
-    reqwest::blocking::Client::new()
+    let response = reqwest::blocking::Client::new()
         .get(url)
         .header("User-Agent", "oppw4-launcher")
         .send()
         .map_err(|source| UpdaterError::Network {
             context: "Could not contact GitHub",
             source,
-        })?
+        })?;
+    if matches!(
+        response.status(),
+        StatusCode::FORBIDDEN | StatusCode::TOO_MANY_REQUESTS
+    ) {
+        return Err(UpdaterError::RateLimited);
+    }
+    response
         .error_for_status()
         .map_err(|source| UpdaterError::Network {
             context: "Launcher update request failed",

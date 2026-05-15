@@ -46,6 +46,9 @@
   let launcherUpdatePromptDismissed = false;
   let showLauncherUpdatePrompt = false;
 
+  const launcherUpdateCheckKey = "oppw4-launcher:lastLauncherUpdateCheckAt";
+  const launcherUpdateCheckIntervalMs = 6 * 60 * 60 * 1000;
+
   $: hasGameFolder = Boolean(config.gameFolder);
   $: canLaunch = config.launchMode === "steam" || Boolean(config.gameExecutablePath);
   $: isInstalled = config.installedFiles.length > 0;
@@ -116,9 +119,14 @@
   }
 
   async function checkLauncherUpdate(prompt = false) {
+    if (prompt && shouldSkipStartupLauncherUpdateCheck()) {
+      logger.debug("launcher update startup check skipped: recent check already completed");
+      return;
+    }
     checkingLauncherUpdate = true;
     try {
       launcherUpdate = await invoke<LauncherUpdateInfo>("check_launcher_update");
+      markLauncherUpdateChecked();
       if (launcherUpdate.available) {
         logger.debug(`launcher update available: current=${launcherUpdate.currentVersion}; latest=${launcherUpdate.latestVersion}; asset=${launcherUpdate.assetName ?? "none"}`);
         if (prompt && !launcherUpdatePromptDismissed) showLauncherUpdatePrompt = true;
@@ -133,12 +141,29 @@
         }
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : typeof err === "string" ? err : "Could not check launcher update";
+      const message = launcherUpdateErrorMessage(err);
+      markLauncherUpdateChecked();
       if (!prompt) logger.error(message);
       else logger.debug(`launcher update check failed: ${message}`);
     } finally {
       checkingLauncherUpdate = false;
     }
+  }
+
+  function shouldSkipStartupLauncherUpdateCheck() {
+    const checkedAt = Number(localStorage.getItem(launcherUpdateCheckKey) || "0");
+    return Number.isFinite(checkedAt) && Date.now() - checkedAt < launcherUpdateCheckIntervalMs;
+  }
+
+  function markLauncherUpdateChecked() {
+    localStorage.setItem(launcherUpdateCheckKey, String(Date.now()));
+  }
+
+  function launcherUpdateErrorMessage(err: unknown) {
+    const message = err instanceof Error ? err.message : typeof err === "string" ? err : "Could not check launcher update";
+    return message.toLowerCase().includes("rate limit")
+      ? "GitHub rate limit exceeded while checking launcher updates. Try again later."
+      : message;
   }
 
   async function installLauncherUpdate() {

@@ -75,6 +75,8 @@ pub enum UpdaterError {
     NoSupportedAsset,
     #[error("Downloaded launcher update hash does not match GitHub digest.")]
     HashMismatch,
+    #[error("GitHub rate limit exceeded while checking launcher updates. Try again later.")]
+    RateLimited,
     #[error("{context}: {source}")]
     Network {
         context: &'static str,

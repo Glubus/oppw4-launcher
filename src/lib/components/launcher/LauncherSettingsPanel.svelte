@@ -108,39 +108,41 @@
           Override Steam launch with a custom executable
         </label>
 
-        <div class="grid min-h-16 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-          <div class="min-w-0">
-            <h3 class="font-black">Game install</h3>
-            <p class="mt-1 text-sm text-muted-foreground">
-              {hasGameFolder ? "Local mod management is ready." : "Select the game folder to enable local mod management."}
-            </p>
-          </div>
-          <div class="flex flex-wrap gap-2 sm:justify-end">
-            <Button variant="outline" on:click={onChooseGameFolder}>{config.gameFolder ? "Change game folder" : "Select game folder"}</Button>
-            <Button variant="outline" disabled={!usesExecutableOverride} on:click={onChooseExecutable}>{config.gameExecutablePath ? "Change executable" : "Select executable"}</Button>
-          </div>
-        </div>
-
-        <div class="grid gap-3 lg:grid-cols-2">
-          <div class="min-w-0 rounded-md border border-white/10 bg-background/45 p-3">
-            <p class="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Game folder</p>
-            <p class="mt-2 break-words text-sm font-bold text-foreground">{config.gameFolder || "Not selected"}</p>
-          </div>
-          <div class="min-w-0 rounded-md border border-white/10 bg-background/45 p-3 transition {usesExecutableOverride ? '' : 'pointer-events-none opacity-45 grayscale'}">
-            <p class="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Executable</p>
-            <p class="mt-2 break-words text-sm font-bold text-foreground">{config.gameExecutablePath || "Steam launch / not selected"}</p>
-          </div>
-        </div>
-
-        {#if detectedGame}
-          <div class="flex flex-col gap-3 rounded-md border border-primary/20 bg-primary/10 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="grid gap-3 transition {usesExecutableOverride ? '' : 'pointer-events-none opacity-45 grayscale'}">
+          <div class="grid min-h-16 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
             <div class="min-w-0">
-              <p class="font-black">Steam install detected</p>
-              <p class="mt-1 break-words text-sm text-muted-foreground">{detectedGame.gameFolder}</p>
+              <h3 class="font-black">Game install</h3>
+              <p class="mt-1 text-sm text-muted-foreground">
+                {hasGameFolder ? "Local mod management is ready." : "Select the game folder to enable local mod management."}
+              </p>
             </div>
-            <Button variant="outline" on:click={onUseDetected}>Use this install</Button>
+            <div class="flex flex-wrap gap-2 sm:justify-end">
+              <Button variant="outline" on:click={onChooseGameFolder}>{config.gameFolder ? "Change game folder" : "Select game folder"}</Button>
+              <Button variant="outline" disabled={!usesExecutableOverride} on:click={onChooseExecutable}>{config.gameExecutablePath ? "Change executable" : "Select executable"}</Button>
+            </div>
           </div>
-        {/if}
+
+          <div class="grid gap-3 lg:grid-cols-2">
+            <div class="min-w-0 rounded-md border border-white/10 bg-background/45 p-3">
+              <p class="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Game folder</p>
+              <p class="mt-2 break-words text-sm font-bold text-foreground">{config.gameFolder || "Not selected"}</p>
+            </div>
+            <div class="min-w-0 rounded-md border border-white/10 bg-background/45 p-3 {usesExecutableOverride ? '' : 'pointer-events-none'}">
+              <p class="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Executable</p>
+              <p class="mt-2 break-words text-sm font-bold text-foreground">{config.gameExecutablePath || "Steam launch / not selected"}</p>
+            </div>
+          </div>
+
+          {#if detectedGame}
+            <div class="flex flex-col gap-3 rounded-md border border-primary/20 bg-primary/10 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div class="min-w-0">
+                <p class="font-black">Steam install detected</p>
+                <p class="mt-1 break-words text-sm text-muted-foreground">{detectedGame.gameFolder}</p>
+              </div>
+              <Button variant="outline" on:click={onUseDetected}>Use this install</Button>
+            </div>
+          {/if}
+        </div>
       </section>
     </section>
   {:else if activeTab === "patcher"}
