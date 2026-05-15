@@ -3,12 +3,15 @@
   import Input from "$lib/components/ui/Input.svelte";
   import Label from "$lib/components/ui/Label.svelte";
   import LauncherHealthPanel from "./LauncherHealthPanel.svelte";
-  import type { DetectedGame, HealthCheckItem, LaunchMode, LauncherConfig } from "./types";
+  import type { DetectedGame, HealthCheckItem, LaunchMode, LauncherConfig, LauncherUpdateInfo } from "./types";
 
   export let config: LauncherConfig;
   export let detectedGame: DetectedGame | null = null;
   export let hasGameFolder = false;
   export let healthItems: HealthCheckItem[] = [];
+  export let launcherUpdate: LauncherUpdateInfo | null = null;
+  export let checkingLauncherUpdate = false;
+  export let installingLauncherUpdate = false;
   export let busy = false;
   export let onUseDetected: () => void = () => {};
   export let onSetLaunchMode: (mode: LaunchMode) => void = () => {};
@@ -18,6 +21,8 @@
   export let onRunHealth: () => void = () => {};
   export let onExportDiagnostics: () => void = () => {};
   export let onDebugLogsChange: () => void = () => {};
+  export let onCheckLauncherUpdate: () => void = () => {};
+  export let onInstallLauncherUpdate: () => void = () => {};
 </script>
 
 <div class="grid gap-5 p-2 pt-5">
@@ -90,6 +95,34 @@
   </section>
 
   <LauncherHealthPanel items={healthItems} {busy} onRun={onRunHealth} onExport={onExportDiagnostics} />
+
+  <section class="grid gap-3 border-b border-white/10 pb-5">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h3 class="font-black">Launcher update</h3>
+        <p class="mt-1 text-sm text-muted-foreground">
+          {#if launcherUpdate?.available}
+            Version {launcherUpdate.latestVersion} is available.
+          {:else if launcherUpdate}
+            Launcher is up to date.
+          {:else}
+            Check GitHub releases for a newer launcher build.
+          {/if}
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <Button variant="outline" disabled={checkingLauncherUpdate || installingLauncherUpdate} on:click={onCheckLauncherUpdate}>{checkingLauncherUpdate ? "Checking..." : "Check update"}</Button>
+        {#if launcherUpdate?.available}
+          <Button disabled={installingLauncherUpdate} on:click={onInstallLauncherUpdate}>{installingLauncherUpdate ? "Downloading..." : "Install update"}</Button>
+        {/if}
+      </div>
+    </div>
+    {#if launcherUpdate?.assetName}
+      <p class="rounded-md border border-white/10 bg-background/45 p-3 text-sm text-muted-foreground">
+        Asset: <span class="font-bold text-foreground">{launcherUpdate.assetName}</span>
+      </p>
+    {/if}
+  </section>
 
   <section class="grid gap-3">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

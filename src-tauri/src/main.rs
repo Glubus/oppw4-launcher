@@ -1,4 +1,3 @@
 fn main() {
-  oppw4_launcher_lib::run();
+    oppw4_launcher_lib::run();
 }
-

@@ -10,6 +10,7 @@
   import LauncherProfilesPanel from "$lib/components/launcher/LauncherProfilesPanel.svelte";
   import LauncherSettingsPanel from "$lib/components/launcher/LauncherSettingsPanel.svelte";
   import LauncherTabs from "$lib/components/launcher/LauncherTabs.svelte";
+  import LauncherUpdateModal from "$lib/components/launcher/LauncherUpdateModal.svelte";
   import ProfileModal from "$lib/components/launcher/ProfileModal.svelte";
   import { createLauncherLogger } from "$lib/components/launcher/launcherLogger";
   import { createLauncherRuntime, type LauncherRuntimeState } from "$lib/components/launcher/launcherRuntime";
@@ -17,7 +18,8 @@
   import * as nativeActions from "$lib/components/launcher/nativeActions";
   import * as profileActions from "$lib/components/launcher/profileActions";
   import * as updateActions from "$lib/components/launcher/updateActions";
-  import { defaultLauncherConfig, type ActiveLauncherPanel, type DetectedGame, type HealthCheckItem, type InstalledMod, type ModProfile, type ReleaseInfo } from "$lib/components/launcher/types";
+  import { defaultLauncherConfig, type ActiveLauncherPanel, type DetectedGame, type HealthCheckItem, type InstalledMod, type LauncherUpdateInfo, type LauncherUpdateInstallResult, type ModProfile, type ReleaseInfo } from "$lib/components/launcher/types";
+  import { invoke } from "@tauri-apps/api/core";
 
   let config = defaultLauncherConfig;
   let detectedGame: DetectedGame | null = null;
@@ -38,6 +40,11 @@
   let selectedProfile: ModProfile | null = null;
   let healthItems: HealthCheckItem[] = [];
   let lastUpdateFingerprint = "";
+  let launcherUpdate: LauncherUpdateInfo | null = null;
+  let checkingLauncherUpdate = false;
+  let installingLauncherUpdate = false;
+  let launcherUpdatePromptDismissed = false;
+  let showLauncherUpdatePrompt = false;
 
   $: hasGameFolder = Boolean(config.gameFolder);
   $: canLaunch = config.launchMode === "steam" || Boolean(config.gameExecutablePath);
@@ -77,7 +84,7 @@
       loading = false;
       return;
     }
-    void runtime.load();
+    void startup();
     const refreshOnFocus = () => {
       if (!loading && !busy) void runtime.load();
     };
@@ -101,6 +108,49 @@
     needsPatcherUpdate = state.needsPatcherUpdate;
     localModloaderSha256 = state.localModloaderSha256;
     remoteModloaderSha256 = state.remoteModloaderSha256;
+  }
+
+  async function startup() {
+    await runtime.load();
+    await checkLauncherUpdate(true);
+  }
+
+  async function checkLauncherUpdate(prompt = false) {
+    checkingLauncherUpdate = true;
+    try {
+      launcherUpdate = await invoke<LauncherUpdateInfo>("check_launcher_update");
+      if (launcherUpdate.available) {
+        logger.debug(`launcher update available: current=${launcherUpdate.currentVersion}; latest=${launcherUpdate.latestVersion}; asset=${launcherUpdate.assetName ?? "none"}`);
+        if (prompt && !launcherUpdatePromptDismissed) showLauncherUpdatePrompt = true;
+        if (!prompt) logger.success(`Launcher ${launcherUpdate.latestVersion} is available.`);
+      } else if (!prompt) {
+        logger.success("Launcher is up to date.");
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : typeof err === "string" ? err : "Could not check launcher update";
+      if (!prompt) logger.error(message);
+      else logger.debug(`launcher update check failed: ${message}`);
+    } finally {
+      checkingLauncherUpdate = false;
+    }
+  }
+
+  async function installLauncherUpdate() {
+    installingLauncherUpdate = true;
+    try {
+      const result = await invoke<LauncherUpdateInstallResult>("install_launcher_update");
+      showLauncherUpdatePrompt = false;
+      logger.success(`Launcher update downloaded and opened: ${result.path}`);
+    } catch (err) {
+      logger.error(err instanceof Error ? err.message : typeof err === "string" ? err : "Could not install launcher update");
+    } finally {
+      installingLauncherUpdate = false;
+    }
+  }
+
+  function dismissLauncherUpdatePrompt() {
+    launcherUpdatePromptDismissed = true;
+    showLauncherUpdatePrompt = false;
   }
 
   function createProfile(icon: string, color: string) {
@@ -156,7 +206,7 @@
       {:else if activePanel === "profiles"}
         <LauncherProfilesPanel profiles={config.modProfiles} {installedMods} bind:profileName {busy} onCreateWithStyle={createProfile} onSaveEnabledWithStyle={saveEnabledProfile} onOpen={openProfile} onApply={applyProfile} onDelete={deleteProfile} />
       {:else if activePanel === "settings"}
-        <LauncherSettingsPanel bind:config {detectedGame} {hasGameFolder} {healthItems} {busy} onUseDetected={() => nativeActions.useDetectedGame(ctx)} onSetLaunchMode={(mode) => nativeActions.setLaunchMode(ctx, mode)} onChooseGameFolder={() => nativeActions.chooseGameFolder(ctx)} onChooseExecutable={() => nativeActions.chooseExecutable(ctx)} onRepositoryChange={() => runtime.saveAndRefresh("Repository saved.")} onRunHealth={() => runtime.runHealthCheck()} onExportDiagnostics={() => nativeActions.exportDiagnostics(ctx)} onDebugLogsChange={() => runtime.saveAndRefresh(config.debugLogs ? "Debug logs enabled." : "Debug logs disabled.")} />
+        <LauncherSettingsPanel bind:config {detectedGame} {hasGameFolder} {healthItems} {launcherUpdate} {checkingLauncherUpdate} {installingLauncherUpdate} {busy} onUseDetected={() => nativeActions.useDetectedGame(ctx)} onSetLaunchMode={(mode) => nativeActions.setLaunchMode(ctx, mode)} onChooseGameFolder={() => nativeActions.chooseGameFolder(ctx)} onChooseExecutable={() => nativeActions.chooseExecutable(ctx)} onRepositoryChange={() => runtime.saveAndRefresh("Repository saved.")} onRunHealth={() => runtime.runHealthCheck()} onExportDiagnostics={() => nativeActions.exportDiagnostics(ctx)} onDebugLogsChange={() => runtime.saveAndRefresh(config.debugLogs ? "Debug logs enabled." : "Debug logs disabled.")} onCheckLauncherUpdate={() => checkLauncherUpdate(false)} onInstallLauncherUpdate={installLauncherUpdate} />
       {:else}
         <LauncherChangelogPanel {latestRelease} />
       {/if}
@@ -165,5 +215,9 @@
 
   {#if selectedProfile}
     <ProfileModal profile={selectedProfile} mods={selectedProfileMods} {updateSkins} {busy} onApply={applyProfile} onClose={closeProfile} onStyle={updateProfileStyle} onToggleMod={toggleProfileMod} />
+  {/if}
+
+  {#if showLauncherUpdatePrompt && launcherUpdate?.available}
+    <LauncherUpdateModal update={launcherUpdate} installing={installingLauncherUpdate} onInstall={installLauncherUpdate} onDismiss={dismissLauncherUpdatePrompt} />
   {/if}
 </main>

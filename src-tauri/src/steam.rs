@@ -1,140 +1,163 @@
 use crate::config::STEAM_APP_ID;
 use serde::Serialize;
-use std::{fs, path::{Path, PathBuf}};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DetectedGame {
-  pub game_folder: String,
-  pub executable_path: Option<String>,
-  pub source: String,
+    pub game_folder: String,
+    pub executable_path: Option<String>,
+    pub source: String,
 }
 
 pub fn detect_oppw4() -> Option<DetectedGame> {
-  for steam_root in steam_roots() {
-    for library in steam_libraries(&steam_root) {
-      let manifest = library.join("steamapps").join(format!("appmanifest_{STEAM_APP_ID}.acf"));
-      if !manifest.exists() {
-        continue;
-      }
-      if let Some(folder_name) = parse_install_dir(&manifest) {
-        let game_folder = library.join("steamapps").join("common").join(folder_name);
-        if game_folder.exists() {
-          return Some(DetectedGame {
-            executable_path: find_game_executable(&game_folder).map(path_to_string),
-            game_folder: path_to_string(game_folder),
-            source: "Steam".to_string(),
-          });
+    for steam_root in steam_roots() {
+        for library in steam_libraries(&steam_root) {
+            if let Some(game) = detect_oppw4_in_library(&library) {
+                return Some(game);
+            }
         }
-      }
     }
-  }
-  None
+    None
+}
+
+fn detect_oppw4_in_library(library: &Path) -> Option<DetectedGame> {
+    let manifest = app_manifest_path(library);
+    if !manifest.exists() {
+        return None;
+    }
+    let game_folder = game_folder_from_manifest(library, &manifest)?;
+    if !game_folder.exists() {
+        return None;
+    }
+    Some(DetectedGame {
+        executable_path: find_game_executable(&game_folder).map(path_to_string),
+        game_folder: path_to_string(game_folder),
+        source: "Steam".to_string(),
+    })
+}
+
+fn app_manifest_path(library: &Path) -> PathBuf {
+    library
+        .join("steamapps")
+        .join(format!("appmanifest_{STEAM_APP_ID}.acf"))
+}
+
+fn game_folder_from_manifest(library: &Path, manifest: &Path) -> Option<PathBuf> {
+    parse_install_dir(manifest)
+        .map(|folder_name| library.join("steamapps").join("common").join(folder_name))
 }
 
 pub fn steam_libraries(steam_root: &Path) -> Vec<PathBuf> {
-  let mut libraries = vec![steam_root.to_path_buf()];
-  let vdf = steam_root.join("steamapps").join("libraryfolders.vdf");
-  let Ok(raw) = fs::read_to_string(vdf) else {
-    return libraries;
-  };
+    let mut libraries = vec![steam_root.to_path_buf()];
+    let vdf = steam_root.join("steamapps").join("libraryfolders.vdf");
+    let Ok(raw) = fs::read_to_string(vdf) else {
+        return libraries;
+    };
 
-  for line in raw.lines() {
-    let mut quoted = line.split('"').skip(1).step_by(2);
-    let key = quoted.next();
-    let value = quoted.next();
-    if key == Some("path") {
-      if let Some(path) = value {
-        libraries.push(PathBuf::from(path.replace("\\\\", "\\")));
-      }
+    for line in raw.lines() {
+        let mut quoted = line.split('"').skip(1).step_by(2);
+        let key = quoted.next();
+        let value = quoted.next();
+        if key == Some("path") {
+            if let Some(path) = value {
+                libraries.push(PathBuf::from(path.replace("\\\\", "\\")));
+            }
+        }
     }
-  }
 
-  libraries.sort();
-  libraries.dedup();
-  libraries
+    libraries.sort();
+    libraries.dedup();
+    libraries
 }
 
 fn steam_roots() -> Vec<PathBuf> {
-  let mut roots = Vec::new();
+    let mut roots = Vec::new();
 
-  #[cfg(target_os = "windows")]
-  {
-    use std::env;
-    if let Ok(program_files_x86) = env::var("ProgramFiles(x86)") {
-      roots.push(PathBuf::from(program_files_x86).join("Steam"));
+    #[cfg(target_os = "windows")]
+    {
+        use std::env;
+        if let Ok(program_files_x86) = env::var("ProgramFiles(x86)") {
+            roots.push(PathBuf::from(program_files_x86).join("Steam"));
+        }
+        if let Ok(program_files) = env::var("ProgramFiles") {
+            roots.push(PathBuf::from(program_files).join("Steam"));
+        }
     }
-    if let Ok(program_files) = env::var("ProgramFiles") {
-      roots.push(PathBuf::from(program_files).join("Steam"));
-    }
-  }
 
-  #[cfg(target_os = "linux")]
-  {
-    if let Some(home) = dirs::home_dir() {
-      roots.push(home.join(".steam").join("steam"));
-      roots.push(home.join(".local").join("share").join("Steam"));
-      roots.push(home.join(".var").join("app").join("com.valvesoftware.Steam").join(".local").join("share").join("Steam"));
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(home) = dirs::home_dir() {
+            roots.push(home.join(".steam").join("steam"));
+            roots.push(home.join(".local").join("share").join("Steam"));
+            roots.push(
+                home.join(".var")
+                    .join("app")
+                    .join("com.valvesoftware.Steam")
+                    .join(".local")
+                    .join("share")
+                    .join("Steam"),
+            );
+        }
     }
-  }
 
-  roots.into_iter().filter(|path| path.exists()).collect()
+    roots.into_iter().filter(|path| path.exists()).collect()
 }
 
 fn parse_install_dir(manifest: &Path) -> Option<String> {
-  let raw = fs::read_to_string(manifest).ok()?;
-  for line in raw.lines() {
-    let mut quoted = line.split('"').skip(1).step_by(2);
-    let key = quoted.next();
-    let value = quoted.next();
-    if key == Some("installdir") {
-      return value.map(ToOwned::to_owned);
+    let raw = fs::read_to_string(manifest).ok()?;
+    for line in raw.lines() {
+        let mut quoted = line.split('"').skip(1).step_by(2);
+        let key = quoted.next();
+        let value = quoted.next();
+        if key == Some("installdir") {
+            return value.map(ToOwned::to_owned);
+        }
     }
-  }
-  None
+    None
 }
 
 fn find_game_executable(game_folder: &Path) -> Option<PathBuf> {
-  let candidates = [
-    "OPPW4.exe",
-    "ONE PIECE PIRATE WARRIORS 4.exe",
-    "oppw4.exe",
-  ];
-  for candidate in candidates {
-    let path = game_folder.join(candidate);
-    if path.exists() {
-      return Some(path);
+    let candidates = ["OPPW4.exe", "ONE PIECE PIRATE WARRIORS 4.exe", "oppw4.exe"];
+    for candidate in candidates {
+        let path = game_folder.join(candidate);
+        if path.exists() {
+            return Some(path);
+        }
     }
-  }
-  None
+    None
 }
 
 fn path_to_string(path: PathBuf) -> String {
-  path.to_string_lossy().to_string()
+    path.to_string_lossy().to_string()
 }
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+    use super::*;
 
-  #[test]
-  fn parses_libraryfolders_paths() {
-    let temp = tempfile::tempdir().unwrap();
-    let steamapps = temp.path().join("steamapps");
-    fs::create_dir_all(&steamapps).unwrap();
-    fs::write(
-      steamapps.join("libraryfolders.vdf"),
-      r#""libraryfolders"
+    #[test]
+    fn parses_libraryfolders_paths() {
+        let temp = tempfile::tempdir().unwrap();
+        let steamapps = temp.path().join("steamapps");
+        fs::create_dir_all(&steamapps).unwrap();
+        fs::write(
+            steamapps.join("libraryfolders.vdf"),
+            r#""libraryfolders"
 {
   "0"
   {
     "path" "/mnt/games/Steam"
   }
 }"#,
-    ).unwrap();
+        )
+        .unwrap();
 
-    let libraries = steam_libraries(temp.path());
-    assert!(libraries.contains(&temp.path().to_path_buf()));
-    assert!(libraries.contains(&PathBuf::from("/mnt/games/Steam")));
-  }
+        let libraries = steam_libraries(temp.path());
+        assert!(libraries.contains(&temp.path().to_path_buf()));
+        assert!(libraries.contains(&PathBuf::from("/mnt/games/Steam")));
+    }
 }

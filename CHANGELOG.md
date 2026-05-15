@@ -12,3 +12,5 @@
 - Write important launcher success and error logs to logs/{date}-{time}.log next to the executable.
 - Add a Settings toggle for verbose debug launcher logs.
 - Split launcher runtime and logging helpers out of LauncherPage.
+- Refactor Rust installer code into focused modules with typed errors and result aliases.
+- Add launcher update checks from GitHub releases with a startup prompt and Settings controls.

@@ -63,6 +63,21 @@ export type ReleaseInfo = {
   publishedAt?: string | null;
 };
 
+export type LauncherUpdateInfo = {
+  available: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  releaseName?: string | null;
+  htmlUrl: string;
+  assetName?: string | null;
+  assetSize?: number | null;
+  publishedAt?: string | null;
+};
+
+export type LauncherUpdateInstallResult = {
+  path: string;
+};
+
 export type InstalledMod = {
   name: string;
   kind: string;
