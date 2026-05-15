@@ -3,9 +3,6 @@ mod commands;
 mod config;
 mod error;
 mod installer;
-mod mod_inventory;
-mod models;
-mod steam;
 mod system_utils;
 mod updater;
 
@@ -47,9 +44,14 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use crate::{
-        commands::launcher::diagnostics::status::modloader_status,
+        commands::{
+            launcher::diagnostics::status::modloader_status,
+            mods::{
+                inventory::installed_mods,
+                metadata::{reader::read_local_mod_metadata, zip::inject_metadata_entries},
+            },
+        },
         config::LauncherConfig,
-        mod_inventory::{inject_metadata_entries, installed_mods, read_local_mod_metadata},
     };
     use std::{
         fs,

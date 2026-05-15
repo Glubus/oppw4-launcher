@@ -1,7 +1,11 @@
 use super::{logs, status, HealthCheckItem};
 use crate::{
-    commands::launcher::types::ExportDiagnosticsRequest, config::load_config as read_config,
-    config::LauncherConfig, mod_inventory, models::InstalledMod,
+    commands::{
+        launcher::types::ExportDiagnosticsRequest,
+        mods::{inventory, types::InstalledMod},
+    },
+    config::load_config as read_config,
+    config::LauncherConfig,
 };
 use std::{
     fs,
@@ -13,7 +17,7 @@ use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 #[tauri::command]
 pub(crate) fn export_diagnostics(input: ExportDiagnosticsRequest) -> Result<(), String> {
     let config = read_config()?;
-    let mods = mod_inventory::installed_mods(&config);
+    let mods = inventory::installed_mods(&config);
     let health = status::build_health_check(&config);
     export_diagnostics_zip(PathBuf::from(input.path), &config, &mods, &health)
 }

@@ -1,5 +1,8 @@
 pub(crate) mod folder;
 pub(crate) mod install;
+pub(crate) mod inventory;
+pub(crate) mod keys;
 pub(crate) mod metadata;
+pub(crate) mod paths;
 pub(crate) mod profiles;
 pub(crate) mod types;

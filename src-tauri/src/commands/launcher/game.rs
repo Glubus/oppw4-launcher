@@ -1,6 +1,8 @@
+pub(crate) mod steam;
+
 use crate::{
     config::{load_config as read_config, save_config as write_config, LaunchMode, STEAM_APP_ID},
-    steam, system_utils,
+    system_utils,
 };
 use std::{path::PathBuf, process::Command};
 

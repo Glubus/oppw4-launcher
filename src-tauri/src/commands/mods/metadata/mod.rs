@@ -1,5 +1,8 @@
+pub(crate) mod reader;
+pub(crate) mod zip;
+
 use super::types::ApplyMetadataRequest;
-use crate::{mod_inventory, API_BASE};
+use crate::API_BASE;
 use std::path::PathBuf;
 
 #[tauri::command]
@@ -28,7 +31,7 @@ pub(crate) fn apply_metadata_to_zip(input: ApplyMetadataRequest) -> Result<(), S
         .bytes()
         .map_err(|err| format!("Could not read metadata download: {err}"))?;
 
-    let metadata_entries = mod_inventory::read_metadata_entries(bytes.as_ref())?;
+    let metadata_entries = zip::read_metadata_entries(bytes.as_ref())?;
     if !metadata_entries
         .iter()
         .any(|entry| entry.0 == "metadata.toml")
@@ -36,5 +39,5 @@ pub(crate) fn apply_metadata_to_zip(input: ApplyMetadataRequest) -> Result<(), S
         return Err("Downloaded metadata ZIP does not contain metadata.toml.".to_string());
     }
 
-    mod_inventory::inject_metadata_entries(&target_path, metadata_entries)
+    zip::inject_metadata_entries(&target_path, metadata_entries)
 }

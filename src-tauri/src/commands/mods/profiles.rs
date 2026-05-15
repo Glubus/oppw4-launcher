@@ -1,5 +1,6 @@
+use super::inventory;
 use super::types::ApplyProfileRequest;
-use crate::{config::load_config as read_config, mod_inventory};
+use crate::config::load_config as read_config;
 
 #[tauri::command]
 pub(crate) fn apply_mod_profile(input: ApplyProfileRequest) -> Result<(), String> {
@@ -9,7 +10,7 @@ pub(crate) fn apply_mod_profile(input: ApplyProfileRequest) -> Result<(), String
         .iter()
         .find(|profile| profile.id == input.profile_id)
         .ok_or_else(|| "Mod profile does not exist.".to_string())?;
-    for mod_info in mod_inventory::installed_mods(&config) {
+    for mod_info in inventory::installed_mods(&config) {
         super::folder::set_mod_path_enabled(
             &config,
             &mod_info.path,

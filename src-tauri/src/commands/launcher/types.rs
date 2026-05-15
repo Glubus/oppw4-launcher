@@ -1,4 +1,8 @@
-use crate::{config::LauncherConfig, installer, models::InstalledMod, steam};
+use crate::{
+    commands::{launcher::game::steam, mods::types::InstalledMod},
+    config::LauncherConfig,
+    installer,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize)]

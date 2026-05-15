@@ -1,9 +1,10 @@
 use super::{health_item, logs::latest_loader_log, HealthCheckItem};
 use crate::{
+    commands::mods::{
+        inventory::installed_mods, keys::installed_dependency_keys, types::InstalledMod,
+    },
     config::LauncherConfig,
     installer,
-    mod_inventory::{installed_dependency_keys, installed_mods},
-    models::InstalledMod,
 };
 use std::path::PathBuf;
 

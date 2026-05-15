@@ -22,3 +22,5 @@
 - Throttle automatic launcher update checks and show a clearer GitHub rate-limit message.
 - Clarify launcher update status when GitHub has a different release but no installable asset.
 - Move remaining Rust command DTOs and launcher/mod helpers out of lib.rs into focused modules.
+- Move Steam detection and Mods inventory/metadata helpers under feature command modules.
+- Add focused Rust tests for Mods metadata parsing, ZIP injection, paths, keys, and inventory.
