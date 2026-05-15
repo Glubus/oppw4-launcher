@@ -11,3 +11,4 @@
 - Show launcher success and error feedback as toasts instead of inline alert panels.
 - Write important launcher success and error logs to logs/{date}-{time}.log next to the executable.
 - Add a Settings toggle for verbose debug launcher logs.
+- Split launcher runtime and logging helpers out of LauncherPage.
