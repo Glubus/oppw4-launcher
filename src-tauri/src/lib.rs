@@ -4,7 +4,6 @@ mod config;
 mod diagnostics;
 mod error;
 mod installer;
-mod launcher_status;
 mod mod_inventory;
 mod models;
 mod steam;
@@ -26,7 +25,7 @@ pub fn run() {
             commands::launcher::patcher::restore_modloader,
             commands::launcher::patcher::check_modloader_integrity,
             commands::launcher::diagnostics::run_health_check,
-            commands::launcher::diagnostics::export_diagnostics,
+            commands::launcher::diagnostics::exports::export_diagnostics,
             commands::mods::folder::set_mod_enabled,
             commands::mods::install::import_external_zip,
             commands::mods::profiles::apply_mod_profile,
@@ -49,8 +48,8 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use crate::{
+        commands::launcher::diagnostics::status::modloader_status,
         config::LauncherConfig,
-        launcher_status::modloader_status,
         mod_inventory::{inject_metadata_entries, installed_mods, read_local_mod_metadata},
     };
     use std::{
