@@ -54,6 +54,7 @@
     : needsPatcherUpdate
       ? "bg-amber-400 shadow-[0_0_0_4px_rgba(251,191,36,0.16)]"
       : "bg-destructive shadow-[0_0_0_4px_rgba(239,68,68,0.16)]";
+  $: usesExecutableOverride = config.launchMode === "executable";
 </script>
 
 <div class="grid gap-5 p-2 pt-5">
@@ -79,6 +80,17 @@
   {#if activeTab === "game"}
     <section class="grid gap-5">
       <section class="grid gap-3 border-b border-white/10 pb-5">
+        <div>
+          <h3 class="font-black">Launch method</h3>
+          <p class="mt-1 text-sm text-muted-foreground">Steam works for most installs. Enable executable override only for custom setups.</p>
+        </div>
+        <div class="grid grid-cols-2 overflow-hidden rounded-lg border border-white/10 bg-background/45">
+          <button class="h-11 font-black {config.launchMode === 'steam' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => onSetLaunchMode("steam")}>Steam</button>
+          <button class="h-11 font-black {config.launchMode === 'executable' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => onSetLaunchMode("executable")}>Executable</button>
+        </div>
+      </section>
+
+      <section class="grid gap-3">
         <div class="grid min-h-16 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
           <div class="min-w-0">
             <h3 class="font-black">Game install</h3>
@@ -88,16 +100,26 @@
           </div>
           <div class="flex flex-wrap gap-2 sm:justify-end">
             <Button variant="outline" on:click={onChooseGameFolder}>{config.gameFolder ? "Change game folder" : "Select game folder"}</Button>
-            <Button variant="outline" on:click={onChooseExecutable}>{config.gameExecutablePath ? "Change executable" : "Select executable"}</Button>
+            <Button variant="outline" disabled={!usesExecutableOverride} on:click={onChooseExecutable}>{config.gameExecutablePath ? "Change executable" : "Select executable"}</Button>
           </div>
         </div>
+
+        <label class="flex items-center gap-3 rounded-md border border-white/10 bg-background/45 px-3 py-2 text-sm font-bold text-foreground">
+          <input
+            class="h-4 w-4 accent-primary"
+            type="checkbox"
+            checked={usesExecutableOverride}
+            on:change={(event) => onSetLaunchMode(event.currentTarget.checked ? "executable" : "steam")}
+          />
+          Override Steam launch with a custom executable
+        </label>
 
         <div class="grid gap-3 lg:grid-cols-2">
           <div class="min-w-0 rounded-md border border-white/10 bg-background/45 p-3">
             <p class="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Game folder</p>
             <p class="mt-2 break-words text-sm font-bold text-foreground">{config.gameFolder || "Not selected"}</p>
           </div>
-          <div class="min-w-0 rounded-md border border-white/10 bg-background/45 p-3">
+          <div class="min-w-0 rounded-md border border-white/10 bg-background/45 p-3 {usesExecutableOverride ? '' : 'opacity-55'}">
             <p class="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Executable</p>
             <p class="mt-2 break-words text-sm font-bold text-foreground">{config.gameExecutablePath || "Steam launch / not selected"}</p>
           </div>
@@ -112,17 +134,6 @@
             <Button variant="outline" on:click={onUseDetected}>Use this install</Button>
           </div>
         {/if}
-      </section>
-
-      <section class="grid gap-3">
-        <div>
-          <h3 class="font-black">Launch method</h3>
-          <p class="mt-1 text-sm text-muted-foreground">Steam works for most installs. Use executable only for custom setups.</p>
-        </div>
-        <div class="grid grid-cols-2 overflow-hidden rounded-lg border border-white/10 bg-background/45">
-          <button class="h-11 font-black {config.launchMode === 'steam' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => onSetLaunchMode("steam")}>Steam</button>
-          <button class="h-11 font-black {config.launchMode === 'executable' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => onSetLaunchMode("executable")}>Executable</button>
-        </div>
       </section>
     </section>
   {:else if activeTab === "patcher"}
