@@ -12,8 +12,6 @@
   export let modloaderStatus = "Missing";
   export let latestRelease: ReleaseInfo | null = null;
   export let needsPatcherUpdate = false;
-  export let localModloaderSha256: string | null = null;
-  export let remoteModloaderSha256: string | null = null;
   export let launcherUpdate: LauncherUpdateInfo | null = null;
   export let checkingLauncherUpdate = false;
   export let installingLauncherUpdate = false;
@@ -51,6 +49,11 @@
       : launcherUpdate
         ? `Current build matches GitHub release ${launcherUpdate.latestVersion}.`
         : "Check GitHub releases for a launcher build.";
+  $: patcherStatusTone = modloaderStatus.toLowerCase().includes("installed") && !needsPatcherUpdate
+    ? "bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.16)]"
+    : needsPatcherUpdate
+      ? "bg-amber-400 shadow-[0_0_0_4px_rgba(251,191,36,0.16)]"
+      : "bg-destructive shadow-[0_0_0_4px_rgba(239,68,68,0.16)]";
 </script>
 
 <div class="grid gap-5 p-2 pt-5">
@@ -75,14 +78,14 @@
 
   {#if activeTab === "game"}
     <section class="grid gap-5">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div class="grid min-h-16 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
         <div class="min-w-0">
           <h3 class="font-black">Game install</h3>
           <p class="mt-1 text-sm text-muted-foreground">
             {hasGameFolder ? "Local mod management is ready." : "Select the game folder to enable local mod management."}
           </p>
         </div>
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap gap-2 sm:justify-end">
           <Button variant="outline" on:click={onChooseGameFolder}>{config.gameFolder ? "Change game folder" : "Select game folder"}</Button>
           <Button variant="outline" on:click={onChooseExecutable}>{config.gameExecutablePath ? "Change executable" : "Select executable"}</Button>
         </div>
@@ -123,17 +126,16 @@
   {:else if activeTab === "patcher"}
     <section class="grid gap-5">
       <section class="grid gap-3 border-b border-white/10 pb-5">
-        <div>
-          <h3 class="font-black">Patcher status</h3>
-          <p class="mt-1 text-sm text-muted-foreground">
-            {needsPatcherUpdate ? "A different patcher release or hash is available." : "Installed patcher state from the local game folder."}
-          </p>
+        <div class="grid min-h-16 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+          <div class="min-w-0">
+            <h3 class="font-black">Patcher status</h3>
+            <p class="mt-1 text-sm text-muted-foreground">
+              {needsPatcherUpdate ? "A different patcher release is available." : "Installed patcher state from the local game folder."}
+            </p>
+          </div>
+          <span class="mt-1 h-3 w-3 shrink-0 justify-self-end rounded-full {patcherStatusTone}" title={modloaderStatus} aria-label={modloaderStatus}></span>
         </div>
         <div class="grid gap-3 lg:grid-cols-2">
-          <div class="min-w-0 rounded-md border border-white/10 bg-background/45 p-3">
-            <p class="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Status</p>
-            <p class="mt-2 break-words text-sm font-bold text-foreground">{modloaderStatus}</p>
-          </div>
           <div class="min-w-0 rounded-md border border-white/10 bg-background/45 p-3">
             <p class="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Installed release</p>
             <p class="mt-2 break-words text-sm font-bold text-foreground">{config.modloaderRelease || "Not installed"}</p>
@@ -141,12 +143,6 @@
           <div class="min-w-0 rounded-md border border-white/10 bg-background/45 p-3">
             <p class="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Latest release</p>
             <p class="mt-2 break-words text-sm font-bold text-foreground">{latestRelease?.tagName || "Not checked"}</p>
-          </div>
-          <div class="min-w-0 rounded-md border border-white/10 bg-background/45 p-3">
-            <p class="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Hash check</p>
-            <p class="mt-2 break-words text-sm font-bold text-foreground">
-              {remoteModloaderSha256 ? (localModloaderSha256 === remoteModloaderSha256 ? "Matches latest SHA256" : "Different from latest SHA256") : "No remote SHA256"}
-            </p>
           </div>
         </div>
       </section>
@@ -172,12 +168,12 @@
   {:else}
     <section class="grid gap-5">
       <section class="grid gap-3 border-b border-white/10 pb-5">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="grid min-h-16 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
           <div>
             <h3 class="font-black">Launcher update</h3>
             <p class="mt-1 text-sm text-muted-foreground">{launcherUpdateText}</p>
           </div>
-          <div class="flex flex-wrap gap-2">
+          <div class="flex flex-wrap gap-2 sm:justify-end">
             <Button variant="outline" disabled={checkingLauncherUpdate || installingLauncherUpdate} on:click={onCheckLauncherUpdate}>{checkingLauncherUpdate ? "Checking..." : "Check update"}</Button>
             {#if launcherUpdate?.available}
               <Button disabled={installingLauncherUpdate} on:click={onInstallLauncherUpdate}>{installingLauncherUpdate ? "Downloading..." : "Install update"}</Button>

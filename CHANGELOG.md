@@ -17,3 +17,4 @@
 - Split Tauri commands into feature-scoped command modules.
 - Add secondary Settings tabs for Game, Patcher, and Launcher status.
 - Move command implementations out of lib.rs into feature command modules.
+- Simplify Patcher settings status with a compact indicator.
