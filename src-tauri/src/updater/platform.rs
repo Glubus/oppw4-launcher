@@ -88,3 +88,39 @@ pub(crate) fn open_path(path: &Path) -> UpdaterResult<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn supported_asset_rejects_hashes_and_signatures() {
+        assert!(!is_supported_asset("launcher.AppImage.sha256"));
+        assert!(!is_supported_asset("launcher.zip.sha2"));
+        assert!(!is_supported_asset("launcher.AppImage.sig"));
+    }
+
+    #[test]
+    fn supported_asset_accepts_current_platform_package() {
+        #[cfg(target_os = "linux")]
+        {
+            assert!(is_supported_asset("oppw4-launcher.AppImage"));
+            assert!(is_supported_asset("oppw4-launcher.deb"));
+            assert!(!is_supported_asset("oppw4-launcher.exe"));
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            assert!(is_supported_asset("oppw4-launcher.exe"));
+            assert!(is_supported_asset("oppw4-launcher.msi"));
+            assert!(!is_supported_asset("oppw4-launcher.AppImage"));
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            assert!(is_supported_asset("oppw4-launcher.dmg"));
+            assert!(is_supported_asset("oppw4-launcher.app.tar.gz"));
+            assert!(!is_supported_asset("oppw4-launcher.exe"));
+        }
+    }
+}

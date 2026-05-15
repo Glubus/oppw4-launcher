@@ -8,10 +8,15 @@ use std::{
 };
 
 pub(crate) fn install_dll(bytes: &[u8], game_folder: &Path) -> InstallerResult<Vec<InstalledFile>> {
+    install_dll_with_backup_root(bytes, game_folder, backup_root()?)
+}
+
+fn install_dll_with_backup_root(
+    bytes: &[u8],
+    game_folder: &Path,
+    backup_root: std::path::PathBuf,
+) -> InstallerResult<Vec<InstalledFile>> {
     let target = game_folder.join("dinput8.dll");
-    let backup_root = backup_dir()
-        .map_err(InstallerError::Config)?
-        .join(timestamp());
     fs::create_dir_all(&backup_root)
         .map_err(|source| InstallerError::io("Could not create backup directory", source))?;
 
@@ -33,15 +38,20 @@ pub(crate) fn install_dll(bytes: &[u8], game_folder: &Path) -> InstallerResult<V
 }
 
 pub(crate) fn install_zip(bytes: &[u8], game_folder: &Path) -> InstallerResult<Vec<InstalledFile>> {
+    install_zip_with_backup_root(bytes, game_folder, backup_root()?)
+}
+
+fn install_zip_with_backup_root(
+    bytes: &[u8],
+    game_folder: &Path,
+    backup_root: std::path::PathBuf,
+) -> InstallerResult<Vec<InstalledFile>> {
     let reader = Cursor::new(bytes);
     let mut archive = zip::ZipArchive::new(reader).map_err(|source| InstallerError::Zip {
         context: "Could not read modloader zip",
         source,
     })?;
     let mut installed = Vec::new();
-    let backup_root = backup_dir()
-        .map_err(InstallerError::Config)?
-        .join(timestamp());
     fs::create_dir_all(&backup_root)
         .map_err(|source| InstallerError::io("Could not create backup directory", source))?;
 
@@ -96,6 +106,12 @@ pub(crate) fn install_zip(bytes: &[u8], game_folder: &Path) -> InstallerResult<V
     Ok(installed)
 }
 
+fn backup_root() -> InstallerResult<std::path::PathBuf> {
+    Ok(backup_dir()
+        .map_err(InstallerError::Config)?
+        .join(timestamp()))
+}
+
 pub fn restore(config: &mut crate::config::LauncherConfig) -> InstallerResult<()> {
     let game_folder = config
         .game_folder
@@ -130,4 +146,88 @@ pub fn restore(config: &mut crate::config::LauncherConfig) -> InstallerResult<()
     config.modloader_release = None;
     config.modloader_sha256 = None;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
+
+    fn zip_bytes(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut cursor = Cursor::new(Vec::new());
+        {
+            let mut writer = ZipWriter::new(&mut cursor);
+            let options =
+                SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+            for (name, bytes) in entries {
+                writer.start_file(*name, options).unwrap();
+                writer.write_all(bytes).unwrap();
+            }
+            writer.finish().unwrap();
+        }
+        cursor.into_inner()
+    }
+
+    #[test]
+    fn install_zip_writes_files_and_backs_up_existing_targets() {
+        let temp = tempfile::tempdir().unwrap();
+        let game_folder = temp.path().join("game");
+        let backup_root = temp.path().join("backup");
+        fs::create_dir_all(game_folder.join("loader")).unwrap();
+        fs::write(game_folder.join("dinput8.dll"), b"old dll").unwrap();
+        fs::write(game_folder.join("loader/config.toml"), b"old config").unwrap();
+        let bytes = zip_bytes(&[
+            ("dinput8.dll", b"new dll"),
+            ("loader/config.toml", b"new config"),
+        ]);
+
+        let installed = install_zip_with_backup_root(&bytes, &game_folder, backup_root).unwrap();
+
+        assert_eq!(installed.len(), 2);
+        assert_eq!(fs::read(game_folder.join("dinput8.dll")).unwrap(), b"new dll");
+        assert_eq!(
+            fs::read(game_folder.join("loader/config.toml")).unwrap(),
+            b"new config"
+        );
+        assert_eq!(
+            fs::read(installed[0].backup_path.as_ref().unwrap()).unwrap(),
+            b"old dll"
+        );
+        assert_eq!(
+            fs::read(installed[1].backup_path.as_ref().unwrap()).unwrap(),
+            b"old config"
+        );
+    }
+
+    #[test]
+    fn install_zip_rejects_parent_paths() {
+        let temp = tempfile::tempdir().unwrap();
+        let game_folder = temp.path().join("game");
+        fs::create_dir_all(&game_folder).unwrap();
+        let bytes = zip_bytes(&[("../outside.txt", b"nope")]);
+
+        let err = install_zip_with_backup_root(&bytes, &game_folder, temp.path().join("backup"))
+            .unwrap_err();
+
+        assert!(matches!(err, InstallerError::UnsafeZipPath { .. }));
+        assert!(!temp.path().join("outside.txt").exists());
+    }
+
+    #[test]
+    fn install_dll_backs_up_existing_dinput8() {
+        let temp = tempfile::tempdir().unwrap();
+        let game_folder = temp.path().join("game");
+        fs::create_dir_all(&game_folder).unwrap();
+        fs::write(game_folder.join("dinput8.dll"), b"old").unwrap();
+
+        let installed =
+            install_dll_with_backup_root(b"new", &game_folder, temp.path().join("backup")).unwrap();
+
+        assert_eq!(fs::read(game_folder.join("dinput8.dll")).unwrap(), b"new");
+        assert_eq!(
+            fs::read(installed[0].backup_path.as_ref().unwrap()).unwrap(),
+            b"old"
+        );
+    }
 }

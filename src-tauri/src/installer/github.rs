@@ -98,3 +98,59 @@ pub(crate) fn release_info(release: GithubRelease) -> ReleaseInfo {
             .and_then(|value| value.split('T').next().map(str::to_string)),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn release_with_assets(assets: Vec<&str>) -> GithubRelease {
+        GithubRelease {
+            tag_name: "v1.2.3".to_string(),
+            name: Some("Release".to_string()),
+            body: Some("Body".to_string()),
+            html_url: "https://github.com/owner/repo/releases/tag/v1.2.3".to_string(),
+            prerelease: false,
+            published_at: Some("2026-05-15T12:34:56Z".to_string()),
+            assets: assets
+                .into_iter()
+                .map(|name| GithubAsset {
+                    name: name.to_string(),
+                    browser_download_url: format!("https://example.com/{name}"),
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn validate_repo_requires_owner_and_name() {
+        assert!(matches!(
+            validate_repo(""),
+            Err(InstallerError::InvalidRepository)
+        ));
+        assert!(matches!(
+            validate_repo("owner-only"),
+            Err(InstallerError::InvalidRepository)
+        ));
+        assert!(validate_repo("owner/repo").is_ok());
+    }
+
+    #[test]
+    fn installable_asset_prefers_zip_or_dll() {
+        let release = release_with_assets(vec!["readme.txt", "patcher.dll", "patcher.zip"]);
+
+        let asset = installable_asset(&release).unwrap();
+
+        assert_eq!(asset.name, "patcher.dll");
+    }
+
+    #[test]
+    fn release_info_formats_date_and_asset_name() {
+        let release = release_with_assets(vec!["notes.md", "patcher.zip"]);
+
+        let info = release_info(release);
+
+        assert_eq!(info.tag_name, "v1.2.3");
+        assert_eq!(info.asset_name.as_deref(), Some("patcher.zip"));
+        assert_eq!(info.published_at.as_deref(), Some("2026-05-15"));
+    }
+}

@@ -137,3 +137,73 @@ fn now_label() -> String {
         .map(|duration| duration.as_secs().to_string())
         .unwrap_or_else(|_| "0".to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Read;
+    use zip::ZipArchive;
+
+    #[test]
+    fn export_diagnostics_zip_writes_summary_config_mods_and_health() {
+        let temp = tempfile::tempdir().unwrap();
+        let export_path = temp.path().join("diagnostics.zip");
+        let config = LauncherConfig {
+            game_folder: Some(temp.path().join("game").to_string_lossy().to_string()),
+            modloader_release: Some("v1.2.3".to_string()),
+            ..LauncherConfig::default()
+        };
+        let mods = vec![InstalledMod {
+            name: "Law Outfit".to_string(),
+            kind: "zip".to_string(),
+            path: "/mods/law.zip".to_string(),
+            mod_key: "id:law-outfit".to_string(),
+            enabled: true,
+            mod_id: Some("law-outfit".to_string()),
+            version: Some("1.0.0".to_string()),
+            source_url: None,
+            slug: None,
+            character_name: Some("Law".to_string()),
+            character_slug: Some("law".to_string()),
+            mod_type: Some("skin".to_string()),
+            dependencies: Vec::new(),
+            changelog: None,
+            cover_data_url: None,
+        }];
+        let health = vec![
+            super::super::health_item("ok", "Game folder", "Using game folder."),
+            super::super::health_item("warn", "Loader log", "Missing log."),
+        ];
+
+        export_diagnostics_zip(export_path.clone(), &config, &mods, &health).unwrap();
+
+        let file = fs::File::open(export_path).unwrap();
+        let mut archive = ZipArchive::new(file).unwrap();
+        let mut summary = String::new();
+        archive
+            .by_name("summary.txt")
+            .unwrap()
+            .read_to_string(&mut summary)
+            .unwrap();
+        let mut installed_mods = String::new();
+        archive
+            .by_name("installed-mods.json")
+            .unwrap()
+            .read_to_string(&mut installed_mods)
+            .unwrap();
+        let mut health_json = String::new();
+        archive
+            .by_name("health-check.json")
+            .unwrap()
+            .read_to_string(&mut health_json)
+            .unwrap();
+
+        assert!(summary.contains("Patcher release: v1.2.3"));
+        assert!(summary.contains("Installed mods: 1"));
+        assert!(summary.contains("Health: 0 error(s), 1 warning(s)"));
+        assert!(installed_mods.contains("Law Outfit"));
+        assert!(health_json.contains("Loader log"));
+        assert!(archive.by_name("config.json").is_ok());
+        assert!(archive.by_name("latest-loader-log.txt").is_err());
+    }
+}

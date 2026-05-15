@@ -213,3 +213,71 @@ fn missing_dependencies_for_mod(
         .map(|dependency| format!("{} needs {}", mod_info.name, dependency))
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::commands::mods::types::InstalledMod;
+
+    fn mod_info(name: &str) -> InstalledMod {
+        InstalledMod {
+            name: name.to_string(),
+            path: format!("/mods/{name}.zip"),
+            enabled: true,
+            kind: "zip".to_string(),
+            version: None,
+            mod_id: None,
+            slug: None,
+            source_url: None,
+            mod_key: format!("local:{name}.zip"),
+            character_name: None,
+            character_slug: None,
+            mod_type: None,
+            dependencies: Vec::new(),
+            changelog: None,
+            cover_data_url: None,
+        }
+    }
+
+    #[test]
+    fn metadata_health_warns_only_for_zip_mods_without_identity() {
+        let missing = mod_info("missing");
+        let mut folder = mod_info("folder");
+        folder.kind = "folder".to_string();
+        let mut identified = mod_info("identified");
+        identified.mod_id = Some("identified".to_string());
+
+        let item = metadata_health(&[missing, folder, identified]).unwrap();
+
+        assert_eq!(item.level, "warn");
+        assert_eq!(item.title, "Metadata");
+        assert!(item.detail.contains("1 ZIP mod(s)"));
+    }
+
+    #[test]
+    fn dependencies_health_reports_missing_enabled_dependencies() {
+        let mut dependency = mod_info("dependency");
+        dependency.mod_id = Some("base-law".to_string());
+        dependency.enabled = false;
+        let mut consumer = mod_info("consumer");
+        consumer.dependencies = vec!["base-law".to_string(), "missing-pack".to_string()];
+
+        let item = dependencies_health(&[dependency, consumer]);
+
+        assert_eq!(item.level, "error");
+        assert_eq!(item.title, "Dependencies");
+        assert!(item.detail.contains("consumer needs missing-pack"));
+        assert!(!item.detail.contains("consumer needs base-law"));
+    }
+
+    #[test]
+    fn patcher_health_maps_known_statuses_to_user_messages() {
+        let installed = patcher_health_for_status("Installed");
+        let modified = patcher_health_for_status("Modified dinput8.dll");
+        let missing = patcher_health_for_status("Missing installed dinput8.dll");
+
+        assert_eq!(installed.level, "ok");
+        assert_eq!(modified.level, "warn");
+        assert_eq!(missing.level, "error");
+    }
+}

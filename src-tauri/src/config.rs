@@ -117,3 +117,34 @@ pub fn save_config(config: &LauncherConfig) -> Result<(), String> {
         .map_err(|err| format!("Could not serialize config: {err}"))?;
     fs::write(path, raw).map_err(|err| format!("Could not write config: {err}"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn launcher_config_defaults_to_steam_and_patcher_repo() {
+        let config = LauncherConfig::default();
+
+        assert_eq!(config.launch_mode, LaunchMode::Steam);
+        assert_eq!(config.modloader_repo, "Glubus/oppw4-patcher");
+        assert!(!config.debug_logs);
+        assert!(config.installed_files.is_empty());
+        assert!(config.mod_profiles.is_empty());
+    }
+
+    #[test]
+    fn mod_profile_deserialization_fills_visual_defaults() {
+        let raw = r##"{
+            "id": "default",
+            "name": "Default",
+            "enabledModKeys": ["id:law"]
+        }"##;
+
+        let profile: ModProfile = serde_json::from_str(raw).unwrap();
+
+        assert_eq!(profile.icon, "sparkles");
+        assert_eq!(profile.color, "violet");
+        assert_eq!(profile.enabled_mod_keys, vec!["id:law"]);
+    }
+}

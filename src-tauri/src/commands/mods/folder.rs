@@ -102,3 +102,52 @@ fn checked_mod_path(path: String) -> Result<PathBuf, String> {
     }
     Ok(path)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::LauncherConfig;
+
+    #[test]
+    fn set_mod_path_enabled_disables_and_enables_top_level_mod() {
+        let temp = tempfile::tempdir().unwrap();
+        let mods_dir = temp.path().join("mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+        let mod_path = mods_dir.join("law.zip");
+        fs::write(&mod_path, b"zip").unwrap();
+        let config = LauncherConfig {
+            game_folder: Some(temp.path().to_string_lossy().to_string()),
+            ..LauncherConfig::default()
+        };
+
+        set_mod_path_enabled(&config, &mod_path.to_string_lossy(), false).unwrap();
+
+        let disabled_path = mods_dir.join("law.zip.disabled");
+        assert!(!mod_path.exists());
+        assert!(disabled_path.exists());
+
+        set_mod_path_enabled(&config, &disabled_path.to_string_lossy(), true).unwrap();
+
+        assert!(mod_path.exists());
+        assert!(!disabled_path.exists());
+    }
+
+    #[test]
+    fn set_mod_path_enabled_rejects_nested_mod_paths() {
+        let temp = tempfile::tempdir().unwrap();
+        let mods_dir = temp.path().join("mods");
+        let nested_dir = mods_dir.join("pack");
+        fs::create_dir_all(&nested_dir).unwrap();
+        let nested_mod = nested_dir.join("nested.zip");
+        fs::write(&nested_mod, b"zip").unwrap();
+        let config = LauncherConfig {
+            game_folder: Some(temp.path().to_string_lossy().to_string()),
+            ..LauncherConfig::default()
+        };
+
+        let err = set_mod_path_enabled(&config, &nested_mod.to_string_lossy(), false).unwrap_err();
+
+        assert_eq!(err, "Mod must be inside the configured mods folder.");
+        assert!(nested_mod.exists());
+    }
+}
