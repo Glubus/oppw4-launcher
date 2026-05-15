@@ -114,4 +114,60 @@ mod tests {
         assert_eq!(mods[0].name, "visible");
         assert!(!mods[0].enabled);
     }
+
+    #[test]
+    fn installed_mods_returns_empty_without_game_folder_or_mods_dir() {
+        assert!(installed_mods(&LauncherConfig::default()).is_empty());
+
+        let temp = tempfile::tempdir().unwrap();
+        let config = LauncherConfig {
+            game_folder: Some(temp.path().to_string_lossy().to_string()),
+            ..LauncherConfig::default()
+        };
+
+        assert!(installed_mods(&config).is_empty());
+    }
+
+    #[test]
+    fn installed_mod_from_path_detects_folder_zip_and_disabled_zip() {
+        let temp = tempfile::tempdir().unwrap();
+        let folder = temp.path().join("Folder Mod");
+        fs::create_dir_all(&folder).unwrap();
+        let zip = temp.path().join("Zip Mod.ZIP");
+        fs::write(&zip, b"not a real zip").unwrap();
+        let disabled = temp.path().join("Disabled.zip.disabled");
+        fs::write(&disabled, b"disabled").unwrap();
+
+        let folder_mod = installed_mod_from_path(&folder).unwrap();
+        let zip_mod = installed_mod_from_path(&zip).unwrap();
+        let disabled_mod = installed_mod_from_path(&disabled).unwrap();
+
+        assert_eq!(folder_mod.kind, "folder");
+        assert!(folder_mod.enabled);
+        assert_eq!(zip_mod.kind, "zip");
+        assert!(zip_mod.enabled);
+        assert_eq!(disabled_mod.name, "Disabled.zip");
+        assert_eq!(disabled_mod.mod_key, "local:disabled");
+        assert!(!disabled_mod.enabled);
+    }
+
+    #[test]
+    fn installed_mods_sorts_case_insensitively() {
+        let temp = tempfile::tempdir().unwrap();
+        let mods_dir = temp.path().join("mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+        fs::create_dir_all(mods_dir.join("beta")).unwrap();
+        fs::create_dir_all(mods_dir.join("Alpha")).unwrap();
+        let config = LauncherConfig {
+            game_folder: Some(temp.path().to_string_lossy().to_string()),
+            ..LauncherConfig::default()
+        };
+
+        let mods = installed_mods(&config);
+
+        assert_eq!(
+            mods.iter().map(|mod_info| mod_info.name.as_str()).collect::<Vec<_>>(),
+            vec!["Alpha", "beta"]
+        );
+    }
 }

@@ -230,4 +230,61 @@ mod tests {
             b"old"
         );
     }
+
+    #[test]
+    fn restore_removes_installed_files_and_restores_backups_in_reverse_order() {
+        let temp = tempfile::tempdir().unwrap();
+        let game_folder = temp.path().join("game");
+        let backup_dir = temp.path().join("backup");
+        fs::create_dir_all(game_folder.join("loader")).unwrap();
+        fs::create_dir_all(backup_dir.join("loader")).unwrap();
+        fs::write(game_folder.join("dinput8.dll"), b"installed dll").unwrap();
+        fs::write(game_folder.join("loader/config.toml"), b"installed config").unwrap();
+        fs::write(backup_dir.join("dinput8.dll"), b"old dll").unwrap();
+        fs::write(backup_dir.join("loader/config.toml"), b"old config").unwrap();
+        let mut config = crate::config::LauncherConfig {
+            game_folder: Some(game_folder.to_string_lossy().to_string()),
+            modloader_release: Some("v1".to_string()),
+            modloader_sha256: Some("hash".to_string()),
+            installed_files: vec![
+                InstalledFile {
+                    relative_path: "dinput8.dll".to_string(),
+                    backup_path: Some(backup_dir.join("dinput8.dll").to_string_lossy().to_string()),
+                },
+                InstalledFile {
+                    relative_path: "loader/config.toml".to_string(),
+                    backup_path: Some(
+                        backup_dir
+                            .join("loader/config.toml")
+                            .to_string_lossy()
+                            .to_string(),
+                    ),
+                },
+            ],
+            ..crate::config::LauncherConfig::default()
+        };
+
+        restore(&mut config).unwrap();
+
+        assert_eq!(fs::read(game_folder.join("dinput8.dll")).unwrap(), b"old dll");
+        assert_eq!(
+            fs::read(game_folder.join("loader/config.toml")).unwrap(),
+            b"old config"
+        );
+        assert!(config.installed_files.is_empty());
+        assert!(config.modloader_release.is_none());
+        assert!(config.modloader_sha256.is_none());
+    }
+
+    #[test]
+    fn restore_requires_game_folder() {
+        let mut config = crate::config::LauncherConfig::default();
+
+        assert!(matches!(
+            restore(&mut config),
+            Err(InstallerError::MissingGameFolder {
+                action: "restoring"
+            })
+        ));
+    }
 }

@@ -38,3 +38,57 @@ fn file_with_modified_time(entry: fs::DirEntry) -> Option<(std::time::SystemTime
         })
         .flatten()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::LauncherConfig;
+    use std::{thread, time::Duration};
+
+    #[test]
+    fn crash_log_returns_existing_game_crash_log_only() {
+        let temp = tempfile::tempdir().unwrap();
+        let config = LauncherConfig {
+            game_folder: Some(temp.path().to_string_lossy().to_string()),
+            ..LauncherConfig::default()
+        };
+        assert!(crash_log(&config).is_none());
+
+        let crash_path = temp.path().join("logs").join("crash.log");
+        fs::create_dir_all(crash_path.parent().unwrap()).unwrap();
+        fs::write(&crash_path, b"crash").unwrap();
+
+        assert_eq!(crash_log(&config).as_deref(), Some(crash_path.as_path()));
+    }
+
+    #[test]
+    fn latest_loader_log_returns_newest_file_and_ignores_directories() {
+        let temp = tempfile::tempdir().unwrap();
+        let logs_dir = temp.path().join("mods").join("_oppw4").join("logs");
+        fs::create_dir_all(logs_dir.join("nested")).unwrap();
+        let old_log = logs_dir.join("old.log");
+        let new_log = logs_dir.join("new.log");
+        fs::write(&old_log, b"old").unwrap();
+        thread::sleep(Duration::from_millis(5));
+        fs::write(&new_log, b"new").unwrap();
+        let config = LauncherConfig {
+            game_folder: Some(temp.path().to_string_lossy().to_string()),
+            ..LauncherConfig::default()
+        };
+
+        assert_eq!(latest_loader_log(&config).as_deref(), Some(new_log.as_path()));
+    }
+
+    #[test]
+    fn latest_loader_log_returns_none_without_game_folder_or_logs_dir() {
+        assert!(latest_loader_log(&LauncherConfig::default()).is_none());
+
+        let temp = tempfile::tempdir().unwrap();
+        let config = LauncherConfig {
+            game_folder: Some(temp.path().to_string_lossy().to_string()),
+            ..LauncherConfig::default()
+        };
+
+        assert!(latest_loader_log(&config).is_none());
+    }
+}

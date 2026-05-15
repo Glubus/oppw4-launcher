@@ -114,6 +114,53 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn installed_dependency_keys_includes_identity_aliases_lowercased() {
+        let mut mod_info = installed_mod("ABC", "1.0.0");
+        mod_info.mod_key = "ID:ABC".to_string();
+        mod_info.slug = Some("Cool-Mod".to_string());
+        mod_info.source_url = Some("HTTPS://Example.test/Mod".to_string());
+
+        let keys = installed_dependency_keys(&[mod_info]);
+
+        assert!(keys.contains("id:abc"));
+        assert!(keys.contains("abc"));
+        assert!(keys.contains("slug:cool-mod"));
+        assert!(keys.contains("cool-mod"));
+        assert!(keys.contains("source:https://example.test/mod"));
+        assert!(keys.contains("https://example.test/mod"));
+    }
+
+    #[test]
+    fn same_mod_identity_accepts_slug_or_source_when_id_is_absent() {
+        let mut mod_info = installed_mod("abc", "1.0.0");
+        mod_info.mod_id = None;
+        mod_info.slug = Some("sluggy".to_string());
+        mod_info.source_url = Some("https://example.test/mod".to_string());
+
+        assert!(same_mod_identity(
+            &mod_info,
+            &LocalModMetadata {
+                slug: Some("sluggy".to_string()),
+                ..LocalModMetadata::default()
+            }
+        ));
+        assert!(same_mod_identity(
+            &mod_info,
+            &LocalModMetadata {
+                source_url: Some("https://example.test/mod".to_string()),
+                ..LocalModMetadata::default()
+            }
+        ));
+        assert!(!same_mod_identity(
+            &mod_info,
+            &LocalModMetadata {
+                slug: Some("other".to_string()),
+                ..LocalModMetadata::default()
+            }
+        ));
+    }
+
     fn metadata_with_id(id: &str) -> LocalModMetadata {
         LocalModMetadata {
             mod_id: Some(id.to_string()),

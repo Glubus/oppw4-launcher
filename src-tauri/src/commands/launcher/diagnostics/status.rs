@@ -280,4 +280,39 @@ mod tests {
         assert_eq!(modified.level, "warn");
         assert_eq!(missing.level, "error");
     }
+
+    #[test]
+    fn build_health_check_returns_only_game_folder_error_when_folder_is_invalid() {
+        let config = LauncherConfig {
+            game_folder: Some("/path/that/does/not/exist".to_string()),
+            ..LauncherConfig::default()
+        };
+
+        let health = build_health_check(&config);
+
+        assert_eq!(health.len(), 1);
+        assert_eq!(health[0].level, "error");
+        assert_eq!(health[0].title, "Game folder");
+    }
+
+    #[test]
+    fn installed_mods_health_counts_enabled_mods() {
+        let mut enabled = mod_info("enabled");
+        enabled.enabled = true;
+        let mut disabled = mod_info("disabled");
+        disabled.enabled = false;
+
+        let item = installed_mods_health(&[enabled, disabled]);
+
+        assert_eq!(item.level, "ok");
+        assert!(item.detail.contains("1/2 mods enabled"));
+    }
+
+    #[test]
+    fn installed_mods_health_warns_when_empty() {
+        let item = installed_mods_health(&[]);
+
+        assert_eq!(item.level, "warn");
+        assert_eq!(item.title, "Installed mods");
+    }
 }

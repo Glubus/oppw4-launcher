@@ -200,6 +200,54 @@ mod tests {
         assert_eq!(zip_bytes(&zip_path, ".metadata/cover.png"), b"new-cover");
     }
 
+    #[test]
+    fn read_metadata_entries_accepts_backslash_metadata_paths() {
+        let bytes = metadata_bundle(vec![(".metadata\\cover.png", b"png".as_slice())]);
+
+        let entries = read_metadata_entries(&bytes).unwrap();
+
+        assert_eq!(entries[0].0, ".metadata/cover.png");
+        assert_eq!(entries[0].1, b"png");
+    }
+
+    #[test]
+    fn read_metadata_entries_rejects_absolute_paths() {
+        let bytes = metadata_bundle(vec![("/metadata.toml", b"bad".as_slice())]);
+
+        assert!(read_metadata_entries(&bytes).is_err());
+    }
+
+    #[test]
+    fn inject_metadata_can_add_metadata_to_zip_without_existing_metadata() {
+        let temp = tempfile::tempdir().unwrap();
+        let zip_path = temp.path().join("mod.zip");
+        write_zip_file(&zip_path, vec![("mod/file.txt", b"keep".as_slice())]);
+
+        inject_metadata_entries(
+            &zip_path,
+            vec![("metadata.toml".to_string(), b"title = \"Added\"".to_vec())],
+        )
+        .unwrap();
+
+        assert_eq!(zip_text(&zip_path, "mod/file.txt"), "keep");
+        assert_eq!(zip_text(&zip_path, "metadata.toml"), "title = \"Added\"");
+    }
+
+    #[test]
+    fn inject_metadata_rejects_invalid_target_zip() {
+        let temp = tempfile::tempdir().unwrap();
+        let zip_path = temp.path().join("mod.zip");
+        fs::write(&zip_path, b"not a zip").unwrap();
+
+        let err = inject_metadata_entries(
+            &zip_path,
+            vec![("metadata.toml".to_string(), b"title = \"Nope\"".to_vec())],
+        )
+        .unwrap_err();
+
+        assert!(err.contains("Could not read selected ZIP"));
+    }
+
     fn metadata_bundle(entries: Vec<(&str, &[u8])>) -> Vec<u8> {
         let mut writer = ZipWriter::new(std::io::Cursor::new(Vec::new()));
         let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);

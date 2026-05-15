@@ -180,6 +180,62 @@ mod tests {
         assert!(metadata.dependencies.is_empty());
     }
 
+    #[test]
+    fn parses_scalar_values_and_ignores_empty_strings() {
+        let metadata = parse_mod_metadata_toml(
+            "title = \"  \"\nversion = 1.2.3\nslug = \"law\\\"quote\"\nchangelog = \"Fixed\"\n",
+        );
+
+        assert!(metadata.title.is_none());
+        assert_eq!(metadata.version.as_deref(), Some("1.2.3"));
+        assert_eq!(metadata.slug.as_deref(), Some("law\"quote"));
+        assert_eq!(metadata.changelog.as_deref(), Some("Fixed"));
+    }
+
+    #[test]
+    fn parses_dependency_arrays_and_drops_empty_entries() {
+        let metadata = parse_mod_metadata_toml("dependencies = [\"base\", \"\", \"patch\"]");
+
+        assert_eq!(metadata.dependencies, vec!["base", "patch"]);
+    }
+
+    #[test]
+    fn ignores_cover_outside_metadata_folder_or_unsupported_type() {
+        let outside = metadata_zip(
+            "title = \"Mod\"\ncover = \"cover.png\"\n",
+            Some(("png", "cover.png")),
+        );
+        let unsupported = metadata_zip(
+            "title = \"Mod\"\ncover = \".metadata/cover.gif\"\n",
+            Some(("gif", ".metadata/cover.gif")),
+        );
+
+        assert!(read_mod_metadata_from_bytes(&outside)
+            .unwrap()
+            .cover_data_url
+            .is_none());
+        assert!(read_mod_metadata_from_bytes(&unsupported)
+            .unwrap()
+            .cover_data_url
+            .is_none());
+    }
+
+    #[test]
+    fn rejects_invalid_zip_bytes() {
+        let err = read_mod_metadata_from_bytes(b"not a zip").unwrap_err();
+
+        assert!(err.contains("Could not read mod ZIP"));
+    }
+
+    #[test]
+    fn cover_image_mime_supports_png_jpg_jpeg_and_webp() {
+        assert_eq!(cover_image_mime(".metadata/cover.png").unwrap(), "image/png");
+        assert_eq!(cover_image_mime(".metadata/cover.jpg").unwrap(), "image/jpeg");
+        assert_eq!(cover_image_mime(".metadata/cover.jpeg").unwrap(), "image/jpeg");
+        assert_eq!(cover_image_mime(".metadata/cover.webp").unwrap(), "image/webp");
+        assert!(cover_image_mime(".metadata/cover.gif").is_err());
+    }
+
     fn metadata_zip(metadata: &str, cover: Option<(&str, &str)>) -> Vec<u8> {
         let mut writer = ZipWriter::new(std::io::Cursor::new(Vec::new()));
         let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);

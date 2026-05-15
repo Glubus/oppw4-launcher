@@ -86,3 +86,43 @@ fn game_folder(config: &LauncherConfig, action: &'static str) -> InstallerResult
     }
     Ok(game_folder)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn latest_release_info_ignores_empty_or_invalid_repo() {
+        assert!(latest_release_info("").unwrap().is_none());
+        assert!(latest_release_info("owner-only").unwrap().is_none());
+    }
+
+    #[test]
+    fn game_folder_requires_configured_existing_directory() {
+        let missing_config = LauncherConfig::default();
+        assert!(matches!(
+            game_folder(&missing_config, "testing"),
+            Err(InstallerError::MissingGameFolder { action: "testing" })
+        ));
+
+        let config = LauncherConfig {
+            game_folder: Some("/path/that/does/not/exist".to_string()),
+            ..LauncherConfig::default()
+        };
+        assert!(matches!(
+            game_folder(&config, "testing"),
+            Err(InstallerError::GameFolderDoesNotExist)
+        ));
+    }
+
+    #[test]
+    fn game_folder_accepts_existing_directory() {
+        let temp = tempfile::tempdir().unwrap();
+        let config = LauncherConfig {
+            game_folder: Some(temp.path().to_string_lossy().to_string()),
+            ..LauncherConfig::default()
+        };
+
+        assert_eq!(game_folder(&config, "testing").unwrap(), temp.path());
+    }
+}

@@ -88,4 +88,55 @@ mod tests {
 
         assert_eq!(installed_dinput8_sha256(&config).unwrap(), None);
     }
+
+    #[test]
+    fn installed_dinput8_hash_is_absent_without_game_folder() {
+        assert_eq!(
+            installed_dinput8_sha256(&LauncherConfig::default()).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn zip_dinput8_hash_finds_nested_case_insensitive_dll() {
+        let bytes = zip_bytes(&[("bin/DINPUT8.DLL", b"patcher".as_slice())]);
+
+        assert_eq!(
+            zip_dinput8_sha256(&bytes).unwrap(),
+            "242d2f23a194483a0aea19c60f86ca2fb887d97edfd2cdfdcf4e2d650a2f79f3"
+        );
+    }
+
+    #[test]
+    fn zip_dinput8_hash_rejects_zip_without_dll() {
+        let bytes = zip_bytes(&[("readme.txt", b"readme".as_slice())]);
+
+        assert!(matches!(
+            zip_dinput8_sha256(&bytes),
+            Err(InstallerError::ZipMissingDinput8)
+        ));
+    }
+
+    #[test]
+    fn zip_dinput8_hash_rejects_unsafe_entry_before_hashing() {
+        let bytes = zip_bytes(&[("../dinput8.dll", b"patcher".as_slice())]);
+
+        assert!(matches!(
+            zip_dinput8_sha256(&bytes),
+            Err(InstallerError::UnsafeZipPath { .. })
+        ));
+    }
+
+    fn zip_bytes(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        use std::io::Write;
+        use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
+
+        let mut writer = ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+        for (name, content) in entries {
+            writer.start_file(*name, options).unwrap();
+            writer.write_all(content).unwrap();
+        }
+        writer.finish().unwrap().into_inner()
+    }
 }

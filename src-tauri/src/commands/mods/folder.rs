@@ -150,4 +150,70 @@ mod tests {
         assert_eq!(err, "Mod must be inside the configured mods folder.");
         assert!(nested_mod.exists());
     }
+
+    #[test]
+    fn set_mod_path_enabled_is_idempotent_when_state_already_matches() {
+        let temp = tempfile::tempdir().unwrap();
+        let mods_dir = temp.path().join("mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+        let enabled_mod = mods_dir.join("enabled.zip");
+        let disabled_mod = mods_dir.join("disabled.zip.disabled");
+        fs::write(&enabled_mod, b"enabled").unwrap();
+        fs::write(&disabled_mod, b"disabled").unwrap();
+        let config = LauncherConfig {
+            game_folder: Some(temp.path().to_string_lossy().to_string()),
+            ..LauncherConfig::default()
+        };
+
+        set_mod_path_enabled(&config, &enabled_mod.to_string_lossy(), true).unwrap();
+        set_mod_path_enabled(&config, &disabled_mod.to_string_lossy(), false).unwrap();
+
+        assert!(enabled_mod.exists());
+        assert!(disabled_mod.exists());
+    }
+
+    #[test]
+    fn set_mod_path_enabled_rejects_name_conflicts() {
+        let temp = tempfile::tempdir().unwrap();
+        let mods_dir = temp.path().join("mods");
+        fs::create_dir_all(&mods_dir).unwrap();
+        let enabled_mod = mods_dir.join("law.zip");
+        let disabled_mod = mods_dir.join("law.zip.disabled");
+        fs::write(&enabled_mod, b"enabled").unwrap();
+        fs::write(&disabled_mod, b"disabled").unwrap();
+        let config = LauncherConfig {
+            game_folder: Some(temp.path().to_string_lossy().to_string()),
+            ..LauncherConfig::default()
+        };
+
+        let enable_err =
+            set_mod_path_enabled(&config, &disabled_mod.to_string_lossy(), true).unwrap_err();
+        let disable_err =
+            set_mod_path_enabled(&config, &enabled_mod.to_string_lossy(), false).unwrap_err();
+
+        assert_eq!(enable_err, "A mod with this enabled name already exists.");
+        assert_eq!(disable_err, "A disabled copy of this mod already exists.");
+    }
+
+    #[test]
+    fn set_mod_path_enabled_requires_game_folder_and_existing_mods_folder() {
+        let temp = tempfile::tempdir().unwrap();
+        let mod_path = temp.path().join("law.zip");
+        fs::write(&mod_path, b"zip").unwrap();
+
+        assert_eq!(
+            set_mod_path_enabled(&LauncherConfig::default(), &mod_path.to_string_lossy(), false)
+                .unwrap_err(),
+            "Set a game folder first."
+        );
+
+        let config = LauncherConfig {
+            game_folder: Some(temp.path().to_string_lossy().to_string()),
+            ..LauncherConfig::default()
+        };
+        assert_eq!(
+            set_mod_path_enabled(&config, &mod_path.to_string_lossy(), false).unwrap_err(),
+            "Mods folder does not exist."
+        );
+    }
 }

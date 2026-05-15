@@ -160,4 +160,57 @@ mod tests {
         assert!(libraries.contains(&temp.path().to_path_buf()));
         assert!(libraries.contains(&PathBuf::from("/mnt/games/Steam")));
     }
+
+    #[test]
+    fn parse_install_dir_returns_manifest_installdir() {
+        let temp = tempfile::tempdir().unwrap();
+        let manifest = temp.path().join("appmanifest.acf");
+        fs::write(
+            &manifest,
+            r#""AppState"
+{
+  "appid" "1089090"
+  "installdir" "OPPW4"
+}"#,
+        )
+        .unwrap();
+
+        assert_eq!(parse_install_dir(&manifest).as_deref(), Some("OPPW4"));
+    }
+
+    #[test]
+    fn detect_oppw4_in_library_requires_manifest_and_existing_folder() {
+        let temp = tempfile::tempdir().unwrap();
+        assert!(detect_oppw4_in_library(temp.path()).is_none());
+
+        let manifest = app_manifest_path(temp.path());
+        fs::create_dir_all(manifest.parent().unwrap()).unwrap();
+        fs::write(&manifest, "\"installdir\" \"OPPW4\"").unwrap();
+        assert!(detect_oppw4_in_library(temp.path()).is_none());
+
+        let game_folder = temp.path().join("steamapps").join("common").join("OPPW4");
+        fs::create_dir_all(&game_folder).unwrap();
+        fs::write(game_folder.join("OPPW4.exe"), b"exe").unwrap();
+
+        let detected = detect_oppw4_in_library(temp.path()).unwrap();
+
+        assert_eq!(detected.source, "Steam");
+        assert!(detected.game_folder.ends_with("steamapps/common/OPPW4"));
+        assert!(detected
+            .executable_path
+            .as_deref()
+            .unwrap_or_default()
+            .ends_with("OPPW4.exe"));
+    }
+
+    #[test]
+    fn find_game_executable_uses_known_candidate_order() {
+        let temp = tempfile::tempdir().unwrap();
+        fs::write(temp.path().join("oppw4.exe"), b"lower").unwrap();
+        fs::write(temp.path().join("ONE PIECE PIRATE WARRIORS 4.exe"), b"long").unwrap();
+
+        let executable = find_game_executable(temp.path()).unwrap();
+
+        assert!(executable.ends_with("ONE PIECE PIRATE WARRIORS 4.exe"));
+    }
 }

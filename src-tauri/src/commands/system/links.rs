@@ -40,3 +40,20 @@ pub(crate) fn open_external_url(url: String) -> Result<(), String> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn open_external_url_rejects_non_http_urls_before_spawning_browser() {
+        assert_eq!(
+            open_external_url("file:///tmp/mod.zip".to_string()).unwrap_err(),
+            "Only web URLs can be opened externally."
+        );
+        assert_eq!(
+            open_external_url("steam://run/1089090".to_string()).unwrap_err(),
+            "Only web URLs can be opened externally."
+        );
+    }
+}
