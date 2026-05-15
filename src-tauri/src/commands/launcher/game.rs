@@ -1,6 +1,6 @@
 use crate::{
     config::{load_config as read_config, save_config as write_config, LaunchMode, STEAM_APP_ID},
-    now_label, steam,
+    steam, system_utils,
 };
 use std::{path::PathBuf, process::Command};
 
@@ -33,7 +33,7 @@ pub(crate) fn launch_game() -> Result<(), String> {
                 .map_err(|err| format!("Could not launch executable: {err}"))?;
         }
     }
-    config.last_launch_at = Some(now_label());
+    config.last_launch_at = Some(system_utils::now_label());
     write_config(&config)
 }
 

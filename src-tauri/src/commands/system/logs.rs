@@ -1,4 +1,5 @@
-use crate::{now_label, LauncherLogRequest};
+use super::types::LauncherLogRequest;
+use crate::system_utils;
 use std::{fs, io::Write};
 
 #[tauri::command]
@@ -9,7 +10,7 @@ pub(crate) fn write_launcher_log(input: LauncherLogRequest) -> Result<(), String
         .filter(|value| value.is_ascii_alphanumeric() || matches!(value, '-' | '_'))
         .collect::<String>();
     let safe_stamp = if safe_stamp.is_empty() {
-        now_label()
+        system_utils::now_label()
     } else {
         safe_stamp
     };
@@ -25,7 +26,7 @@ pub(crate) fn write_launcher_log(input: LauncherLogRequest) -> Result<(), String
     let prefix = if input.debug { "DEBUG" } else { level.as_str() };
     let line = format!(
         "[{}] {} {}\n",
-        now_label(),
+        system_utils::now_label(),
         prefix,
         input.message.replace('\n', " ")
     );

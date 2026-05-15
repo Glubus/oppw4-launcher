@@ -1,6 +1,7 @@
+use super::types::LauncherState;
 use crate::{
     config::{load_config as read_config, save_config as write_config, LauncherConfig},
-    installer, modloader_status, steam, LauncherState,
+    installer, launcher_status, mod_inventory, steam,
 };
 
 #[tauri::command]
@@ -18,8 +19,9 @@ pub(crate) fn get_launcher_state() -> Result<LauncherState, String> {
     let _ = installer::refresh_latest_modloader_hash(&mut config, false);
     write_config(&config)?;
     let remote_modloader_sha256 = config.latest_modloader_sha256.clone();
-    let modloader_status = modloader_status(&config, local_modloader_sha256.as_deref());
-    let installed_mods = crate::installed_mods(&config);
+    let modloader_status =
+        launcher_status::modloader_status(&config, local_modloader_sha256.as_deref());
+    let installed_mods = mod_inventory::installed_mods(&config);
     let latest_release = installer::latest_release_info(&config.modloader_repo)
         .ok()
         .flatten();

@@ -21,3 +21,4 @@
 - Add a Steam launch executable override with disabled Game install controls until enabled.
 - Throttle automatic launcher update checks and show a clearer GitHub rate-limit message.
 - Clarify launcher update status when GitHub has a different release but no installable asset.
+- Move remaining Rust command DTOs and launcher/mod helpers out of lib.rs into focused modules.

@@ -1,6 +1,7 @@
+use super::types::{RemoveModRequest, RevealModRequest, ToggleModRequest};
 use crate::{
     config::{load_config as read_config, LauncherConfig},
-    RemoveModRequest, RevealModRequest, ToggleModRequest,
+    system_utils,
 };
 use std::{fs, path::PathBuf};
 
@@ -13,7 +14,7 @@ pub(crate) fn set_mod_enabled(input: ToggleModRequest) -> Result<(), String> {
 #[tauri::command]
 pub(crate) fn reveal_mod_in_folder(input: RevealModRequest) -> Result<(), String> {
     let path = checked_mod_path(input.path)?;
-    crate::reveal_path(&path)
+    system_utils::reveal_path(&path)
 }
 
 #[tauri::command]

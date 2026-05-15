@@ -1,4 +1,4 @@
-use crate::{config::LauncherConfig, InstalledMod};
+use crate::{config::LauncherConfig, models::InstalledMod};
 use serde::Serialize;
 use std::{
     fs,

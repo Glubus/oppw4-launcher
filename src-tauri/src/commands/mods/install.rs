@@ -1,9 +1,8 @@
-use crate::{
-    available_mod_path, config::load_config as read_config, installed_mod_from_path, mod_key_for,
-    read_mod_metadata_from_bytes, same_mod_identity, same_mod_version, ImportExternalZipRequest,
-    InstallHostedModRequest, InstallHostedModResult, InstalledMod, InstalledModLookupRequest,
-    API_BASE,
+use super::types::{
+    ImportExternalZipRequest, InstallHostedModRequest, InstallHostedModResult,
+    InstalledModLookupRequest,
 };
+use crate::{config::load_config as read_config, mod_inventory, models::InstalledMod, API_BASE};
 use std::{fs, path::PathBuf};
 
 #[tauri::command]
@@ -31,9 +30,10 @@ pub(crate) fn import_external_zip(input: ImportExternalZipRequest) -> Result<Ins
         .file_name()
         .and_then(|value| value.to_str())
         .ok_or_else(|| "Invalid ZIP file name.".to_string())?;
-    let target = available_mod_path(&mods_dir, file_name);
+    let target = mod_inventory::available_mod_path(&mods_dir, file_name);
     fs::copy(&selected, &target).map_err(|err| format!("Could not import ZIP: {err}"))?;
-    installed_mod_from_path(&target).ok_or_else(|| "Imported ZIP could not be scanned.".to_string())
+    mod_inventory::installed_mod_from_path(&target)
+        .ok_or_else(|| "Imported ZIP could not be scanned.".to_string())
 }
 
 #[tauri::command]
@@ -64,24 +64,25 @@ pub(crate) fn install_hosted_mod(
         return Err("Downloaded file is not a ZIP archive.".to_string());
     }
 
-    let downloaded_metadata = read_mod_metadata_from_bytes(bytes.as_ref()).unwrap_or_default();
+    let downloaded_metadata =
+        mod_inventory::read_mod_metadata_from_bytes(bytes.as_ref()).unwrap_or_default();
     if !input.install_as_new {
-        if let Some(existing) = crate::installed_mods(&config)
+        if let Some(existing) = mod_inventory::installed_mods(&config)
             .into_iter()
-            .find(|mod_info| same_mod_version(mod_info, &downloaded_metadata))
+            .find(|mod_info| mod_inventory::same_mod_version(mod_info, &downloaded_metadata))
         {
             return Ok(InstallHostedModResult {
                 mod_info: existing,
                 already_up_to_date: true,
             });
         }
-        if let Some(existing) = crate::installed_mods(&config)
+        if let Some(existing) = mod_inventory::installed_mods(&config)
             .into_iter()
-            .find(|mod_info| same_mod_identity(mod_info, &downloaded_metadata))
+            .find(|mod_info| mod_inventory::same_mod_identity(mod_info, &downloaded_metadata))
         {
             fs::write(&existing.path, bytes)
                 .map_err(|err| format!("Could not update mod ZIP: {err}"))?;
-            let mod_key = mod_key_for(&input.file_name, &downloaded_metadata);
+            let mod_key = mod_inventory::mod_key_for(&input.file_name, &downloaded_metadata);
             return Ok(InstallHostedModResult {
                 mod_info: InstalledMod {
                     name: downloaded_metadata.title.unwrap_or(existing.name),
@@ -105,14 +106,14 @@ pub(crate) fn install_hosted_mod(
         }
     }
 
-    let target = available_mod_path(&mods_dir, &input.file_name);
+    let target = mod_inventory::available_mod_path(&mods_dir, &input.file_name);
     fs::write(&target, bytes).map_err(|err| format!("Could not write mod ZIP: {err}"))?;
     let name = target
         .file_name()
         .and_then(|value| value.to_str())
         .unwrap_or("installed.zip")
         .to_string();
-    let mod_key = mod_key_for(&name, &downloaded_metadata);
+    let mod_key = mod_inventory::mod_key_for(&name, &downloaded_metadata);
 
     Ok(InstallHostedModResult {
         mod_info: InstalledMod {
@@ -143,14 +144,16 @@ pub(crate) fn installed_mod_for_skin(
     input: InstalledModLookupRequest,
 ) -> Result<Option<InstalledMod>, String> {
     let config = read_config()?;
-    Ok(crate::installed_mods(&config).into_iter().find(|mod_info| {
-        input
-            .mod_id
-            .as_ref()
-            .is_some_and(|id| mod_info.mod_id.as_ref() == Some(id))
-            || input
-                .slug
+    Ok(mod_inventory::installed_mods(&config)
+        .into_iter()
+        .find(|mod_info| {
+            input
+                .mod_id
                 .as_ref()
-                .is_some_and(|slug| mod_info.slug.as_ref() == Some(slug))
-    }))
+                .is_some_and(|id| mod_info.mod_id.as_ref() == Some(id))
+                || input
+                    .slug
+                    .as_ref()
+                    .is_some_and(|slug| mod_info.slug.as_ref() == Some(slug))
+        }))
 }
