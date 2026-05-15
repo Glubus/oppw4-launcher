@@ -91,6 +91,23 @@
       </section>
 
       <section class="grid gap-3">
+        <label class="flex items-center gap-3 rounded-md border border-white/10 bg-background/45 px-3 py-2 text-sm font-bold text-foreground">
+          <input
+            class="sr-only"
+            type="checkbox"
+            checked={usesExecutableOverride}
+            on:change={(event) => onSetLaunchMode(event.currentTarget.checked ? "executable" : "steam")}
+          />
+          <span class="grid h-4 w-4 shrink-0 place-items-center rounded border border-white/25 {usesExecutableOverride ? 'border-primary bg-primary text-primary-foreground' : 'bg-background/70'}" aria-hidden="true">
+            {#if usesExecutableOverride}
+              <svg class="h-3 w-3" viewBox="0 0 16 16" fill="none">
+                <path d="M3.25 8.25L6.5 11.5L12.75 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            {/if}
+          </span>
+          Override Steam launch with a custom executable
+        </label>
+
         <div class="grid min-h-16 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
           <div class="min-w-0">
             <h3 class="font-black">Game install</h3>
@@ -104,22 +121,12 @@
           </div>
         </div>
 
-        <label class="flex items-center gap-3 rounded-md border border-white/10 bg-background/45 px-3 py-2 text-sm font-bold text-foreground">
-          <input
-            class="h-4 w-4 accent-primary"
-            type="checkbox"
-            checked={usesExecutableOverride}
-            on:change={(event) => onSetLaunchMode(event.currentTarget.checked ? "executable" : "steam")}
-          />
-          Override Steam launch with a custom executable
-        </label>
-
         <div class="grid gap-3 lg:grid-cols-2">
           <div class="min-w-0 rounded-md border border-white/10 bg-background/45 p-3">
             <p class="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Game folder</p>
             <p class="mt-2 break-words text-sm font-bold text-foreground">{config.gameFolder || "Not selected"}</p>
           </div>
-          <div class="min-w-0 rounded-md border border-white/10 bg-background/45 p-3 {usesExecutableOverride ? '' : 'opacity-55'}">
+          <div class="min-w-0 rounded-md border border-white/10 bg-background/45 p-3 transition {usesExecutableOverride ? '' : 'pointer-events-none opacity-45 grayscale'}">
             <p class="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">Executable</p>
             <p class="mt-2 break-words text-sm font-bold text-foreground">{config.gameExecutablePath || "Steam launch / not selected"}</p>
           </div>
