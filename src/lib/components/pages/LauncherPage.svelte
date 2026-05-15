@@ -6,6 +6,7 @@
   import DesktopOnlyCard from "$lib/components/launcher/DesktopOnlyCard.svelte";
   import LauncherChangelogPanel from "$lib/components/launcher/LauncherChangelogPanel.svelte";
   import LauncherHero from "$lib/components/launcher/LauncherHero.svelte";
+  import LaunchOverlapModal from "$lib/components/launcher/LaunchOverlapModal.svelte";
   import LauncherModsPanel from "$lib/components/launcher/LauncherModsPanel.svelte";
   import LauncherProfilesPanel from "$lib/components/launcher/LauncherProfilesPanel.svelte";
   import LauncherSettingsPanel from "$lib/components/launcher/LauncherSettingsPanel.svelte";
@@ -18,7 +19,8 @@
   import * as nativeActions from "$lib/components/launcher/nativeActions";
   import * as profileActions from "$lib/components/launcher/profileActions";
   import * as updateActions from "$lib/components/launcher/updateActions";
-  import { defaultLauncherConfig, type ActiveLauncherPanel, type DetectedGame, type HealthCheckItem, type InstalledMod, type LauncherUpdateInfo, type LauncherUpdateInstallResult, type ModProfile, type ReleaseInfo } from "$lib/components/launcher/types";
+  import { enabledPotentialOverlaps } from "$lib/components/launcher/helpers";
+  import { defaultLauncherConfig, type ActiveLauncherPanel, type DetectedGame, type HealthCheckItem, type InstalledMod, type LauncherUpdateInfo, type LauncherUpdateInstallResult, type ModProfile, type PotentialOverlapGroup, type ReleaseInfo } from "$lib/components/launcher/types";
   import { invoke } from "@tauri-apps/api/core";
 
   let config = defaultLauncherConfig;
@@ -45,6 +47,9 @@
   let installingLauncherUpdate = false;
   let launcherUpdatePromptDismissed = false;
   let showLauncherUpdatePrompt = false;
+  let showOverlapLaunchPrompt = false;
+  let pendingLaunchOverlaps: PotentialOverlapGroup[] = [];
+  let disableOverlapWarningsOnLaunch = false;
 
   const launcherUpdateCheckKey = "oppw4-launcher:lastLauncherUpdateCheckAt";
   const launcherUpdateCheckIntervalMs = 6 * 60 * 60 * 1000;
@@ -215,6 +220,26 @@
   function toggleProfileMod(mod: InstalledMod) {
     return nativeActions.toggleInstalledMod(ctx, mod);
   }
+
+  function requestLaunch() {
+    const overlaps = enabledPotentialOverlaps(installedMods);
+    if (config.warnOnPotentialOverlap && overlaps.length) {
+      pendingLaunchOverlaps = overlaps;
+      disableOverlapWarningsOnLaunch = false;
+      showOverlapLaunchPrompt = true;
+      return;
+    }
+    void nativeActions.launchGame(ctx);
+  }
+
+  async function launchWithOverlapWarning(dontWarnAgain: boolean) {
+    showOverlapLaunchPrompt = false;
+    if (dontWarnAgain) {
+      config = { ...config, warnOnPotentialOverlap: false };
+      await runtime.save();
+    }
+    await nativeActions.launchGame(ctx);
+  }
 </script>
 
 <svelte:head>
@@ -224,7 +249,7 @@
 <AppHeader />
 
 <main class="mx-auto grid w-full max-w-7xl gap-5 px-4 py-6">
-  <LauncherHero {currentRelease} {latestReleaseLabel} {latestReleaseDate} {modloaderStatus} {updateLabel} {isDesktop} {busy} {loading} {hasGameFolder} {canLaunch} hasLatestRelease={Boolean(latestRelease)} onInstall={() => nativeActions.installModloader(ctx)} onLaunch={() => nativeActions.launchGame(ctx)} onCheck={() => nativeActions.checkModloaderIntegrity(ctx)} />
+  <LauncherHero {currentRelease} {latestReleaseLabel} {latestReleaseDate} {modloaderStatus} {updateLabel} {isDesktop} {busy} {loading} {hasGameFolder} {canLaunch} hasLatestRelease={Boolean(latestRelease)} onInstall={() => nativeActions.installModloader(ctx)} onLaunch={requestLaunch} onCheck={() => nativeActions.checkModloaderIntegrity(ctx)} />
 
   {#if !isDesktop}
     <DesktopOnlyCard />
@@ -237,7 +262,7 @@
       {:else if activePanel === "profiles"}
         <LauncherProfilesPanel profiles={config.modProfiles} {installedMods} bind:profileName {busy} onCreateWithStyle={createProfile} onSaveEnabledWithStyle={saveEnabledProfile} onOpen={openProfile} onApply={applyProfile} onDelete={deleteProfile} />
       {:else if activePanel === "settings"}
-        <LauncherSettingsPanel bind:config {detectedGame} {hasGameFolder} {healthItems} {modloaderStatus} {latestRelease} {needsPatcherUpdate} {launcherUpdate} {checkingLauncherUpdate} {installingLauncherUpdate} {busy} onUseDetected={() => nativeActions.useDetectedGame(ctx)} onSetLaunchMode={(mode) => nativeActions.setLaunchMode(ctx, mode)} onChooseGameFolder={() => nativeActions.chooseGameFolder(ctx)} onChooseExecutable={() => nativeActions.chooseExecutable(ctx)} onRepositoryChange={() => runtime.saveAndRefresh("Repository saved.")} onRunHealth={() => runtime.runHealthCheck()} onExportDiagnostics={() => nativeActions.exportDiagnostics(ctx)} onDebugLogsChange={() => runtime.saveAndRefresh(config.debugLogs ? "Debug logs enabled." : "Debug logs disabled.")} onCheckLauncherUpdate={() => checkLauncherUpdate(false)} onInstallLauncherUpdate={installLauncherUpdate} />
+        <LauncherSettingsPanel bind:config {detectedGame} {hasGameFolder} {healthItems} {modloaderStatus} {latestRelease} {needsPatcherUpdate} {launcherUpdate} {checkingLauncherUpdate} {installingLauncherUpdate} {busy} onUseDetected={() => nativeActions.useDetectedGame(ctx)} onSetLaunchMode={(mode) => nativeActions.setLaunchMode(ctx, mode)} onChooseGameFolder={() => nativeActions.chooseGameFolder(ctx)} onChooseExecutable={() => nativeActions.chooseExecutable(ctx)} onRepositoryChange={() => runtime.saveAndRefresh("Repository saved.")} onRunHealth={() => runtime.runHealthCheck()} onExportDiagnostics={() => nativeActions.exportDiagnostics(ctx)} onDebugLogsChange={() => runtime.saveAndRefresh(config.debugLogs ? "Debug logs enabled." : "Debug logs disabled.")} onOverlapWarningChange={() => runtime.saveAndRefresh(config.warnOnPotentialOverlap ? "Overlap warnings enabled." : "Overlap warnings disabled.")} onCheckLauncherUpdate={() => checkLauncherUpdate(false)} onInstallLauncherUpdate={installLauncherUpdate} />
       {:else}
         <LauncherChangelogPanel {latestRelease} />
       {/if}
@@ -250,5 +275,15 @@
 
   {#if showLauncherUpdatePrompt && launcherUpdate?.available}
     <LauncherUpdateModal update={launcherUpdate} installing={installingLauncherUpdate} onInstall={installLauncherUpdate} onDismiss={dismissLauncherUpdatePrompt} />
+  {/if}
+
+  {#if showOverlapLaunchPrompt}
+    <LaunchOverlapModal
+      groups={pendingLaunchOverlaps}
+      launchDisabled={busy}
+      bind:dontWarnAgain={disableOverlapWarningsOnLaunch}
+      onCancel={() => (showOverlapLaunchPrompt = false)}
+      onLaunch={launchWithOverlapWarning}
+    />
   {/if}
 </main>

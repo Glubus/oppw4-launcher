@@ -4,7 +4,7 @@
   import SortCombobox from "$lib/components/molecules/SortCombobox.svelte";
   import Button from "$lib/components/ui/Button.svelte";
   import InstalledModCard from "./InstalledModCard.svelte";
-  import { installedModCharacterSlug, localCharacters, sortInstalledMods } from "./helpers";
+  import { enabledPotentialOverlaps, installedModCharacterSlug, localCharacters, overlapModPaths, overlapSummaryForMod, sortInstalledMods } from "./helpers";
   import type { InstalledMod, ModProfile, UpdateSkinMap } from "./types";
 
   export let installedMods: InstalledMod[] = [];
@@ -36,6 +36,8 @@
   let statusDetails: HTMLDetailsElement;
 
   $: installedCharacters = localCharacters(installedMods);
+  $: overlapGroups = enabledPotentialOverlaps(installedMods);
+  $: overlappedPaths = overlapModPaths(overlapGroups);
   $: filteredInstalledMods = sortInstalledMods(
     installedMods.filter((mod) => matchesModFilters(mod, modSearch, modCharacter, modType, modStatus)),
     modSort
@@ -130,7 +132,17 @@
   {:else if filteredInstalledMods.length}
     <section class="mt-5 grid w-full gap-5 md:grid-cols-2 xl:grid-cols-3">
       {#each filteredInstalledMods as mod}
-        <InstalledModCard {mod} {profiles} {updateSkins} {busy} onToggle={onToggleMod} onRemove={onRemoveMod} onAddToProfile={onAddToProfile} />
+        <InstalledModCard
+          {mod}
+          {profiles}
+          {updateSkins}
+          {busy}
+          hasPotentialOverlap={overlappedPaths.has(mod.path)}
+          overlapSummary={overlapSummaryForMod(mod, overlapGroups)}
+          onToggle={onToggleMod}
+          onRemove={onRemoveMod}
+          onAddToProfile={onAddToProfile}
+        />
       {/each}
     </section>
   {:else}

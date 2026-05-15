@@ -30,6 +30,7 @@ export type LauncherConfig = {
   lastLaunchAt?: string | null;
   modProfiles: ModProfile[];
   debugLogs: boolean;
+  warnOnPotentialOverlap: boolean;
 };
 
 export const defaultLauncherConfig: LauncherConfig = {
@@ -44,7 +45,8 @@ export const defaultLauncherConfig: LauncherConfig = {
   installedFiles: [],
   lastLaunchAt: null,
   modProfiles: [],
-  debugLogs: false
+  debugLogs: false,
+  warnOnPotentialOverlap: true
 };
 
 export type DetectedGame = {
@@ -114,3 +116,10 @@ export type LauncherState = {
 };
 
 export type UpdateSkinMap = Record<string, Skin>;
+
+export type PotentialOverlapGroup = {
+  key: string;
+  characterLabel: string;
+  modType: string;
+  mods: InstalledMod[];
+};

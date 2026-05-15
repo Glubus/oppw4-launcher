@@ -24,6 +24,7 @@
   export let onRunHealth: () => void = () => {};
   export let onExportDiagnostics: () => void = () => {};
   export let onDebugLogsChange: () => void = () => {};
+  export let onOverlapWarningChange: () => void = () => {};
   export let onCheckLauncherUpdate: () => void = () => {};
   export let onInstallLauncherUpdate: () => void = () => {};
 
@@ -226,6 +227,19 @@
       </section>
 
       <section class="grid gap-3">
+        <div class="flex flex-col gap-3 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 class="font-black">Overlap warnings</h3>
+            <p class="mt-1 text-sm text-muted-foreground">Warn before launching when multiple active mods may target the same character and mod type.</p>
+          </div>
+          <Button variant={config.warnOnPotentialOverlap ? "default" : "outline"} on:click={() => {
+            config.warnOnPotentialOverlap = !config.warnOnPotentialOverlap;
+            onOverlapWarningChange();
+          }}>
+            {config.warnOnPotentialOverlap ? "Disable overlap warnings" : "Enable overlap warnings"}
+          </Button>
+        </div>
+
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 class="font-black">Launcher logs</h3>

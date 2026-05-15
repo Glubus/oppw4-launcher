@@ -1,7 +1,8 @@
 use super::{health_item, logs::latest_loader_log, HealthCheckItem};
 use crate::{
     commands::mods::{
-        inventory::installed_mods, keys::installed_dependency_keys, types::InstalledMod,
+        inventory::installed_mods, keys::installed_dependency_keys,
+        overlap::potential_enabled_overlaps, types::InstalledMod,
     },
     config::LauncherConfig,
     installer,
@@ -63,6 +64,7 @@ fn health_sections(
         vec![installed_mods_health(mods)],
         metadata_health(mods).into_iter().collect(),
         vec![dependencies_health(mods)],
+        potential_overlap_health(mods).into_iter().collect(),
         vec![loader_log_health(config)],
     ]
 }
@@ -174,6 +176,25 @@ fn dependencies_health(mods: &[InstalledMod]) -> HealthCheckItem {
     } else {
         health_item("error", "Dependencies", &missing_dependencies.join("; "))
     }
+}
+
+fn potential_overlap_health(mods: &[InstalledMod]) -> Option<HealthCheckItem> {
+    let overlaps = potential_enabled_overlaps(mods);
+    (!overlaps.is_empty()).then(|| {
+        let detail = overlaps
+            .iter()
+            .map(|group| {
+                format!(
+                    "{} / {}: {}",
+                    group.character_label,
+                    group.mod_type,
+                    group.mod_names.join(", ")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        health_item("warn", "Potential mod overlaps", &detail)
+    })
 }
 
 fn loader_log_health(config: &LauncherConfig) -> HealthCheckItem {
@@ -315,5 +336,24 @@ mod tests {
 
         assert_eq!(item.level, "warn");
         assert_eq!(item.title, "Installed mods");
+    }
+
+    #[test]
+    fn potential_overlap_health_warns_for_enabled_overlap_groups() {
+        let mut first = mod_info("Law A");
+        first.character_slug = Some("law".to_string());
+        first.character_name = Some("Law".to_string());
+        first.mod_type = Some("skin".to_string());
+        let mut second = mod_info("Law B");
+        second.character_slug = Some("law".to_string());
+        second.character_name = Some("Law".to_string());
+        second.mod_type = Some("skin".to_string());
+
+        let item = potential_overlap_health(&[first, second]).unwrap();
+
+        assert_eq!(item.level, "warn");
+        assert_eq!(item.title, "Potential mod overlaps");
+        assert!(item.detail.contains("Law / skin"));
+        assert!(item.detail.contains("Law A, Law B"));
     }
 }

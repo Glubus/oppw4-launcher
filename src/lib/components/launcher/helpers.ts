@@ -1,5 +1,5 @@
 import type { Character } from "$lib/api";
-import type { InstalledMod, ModProfile } from "./types";
+import type { InstalledMod, ModProfile, PotentialOverlapGroup } from "./types";
 
 export function errorMessage(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : typeof err === "string" ? err : fallback;
@@ -60,7 +60,7 @@ export function installedModCharacterSlug(mod: InstalledMod) {
 }
 
 export function profileModCount(profile: ModProfile, mods: InstalledMod[]) {
-  return mods.filter((mod) => profile.enabledModKeys.includes(mod.modKey)).length;
+  return profileMods(profile, mods).length;
 }
 
 export function profileHasMod(profile: ModProfile, mod: InstalledMod) {
@@ -68,7 +68,54 @@ export function profileHasMod(profile: ModProfile, mod: InstalledMod) {
 }
 
 export function profilePreviewMods(profile: ModProfile, mods: InstalledMod[]) {
-  return mods.filter((mod) => profile.enabledModKeys.includes(mod.modKey) && mod.coverDataUrl);
+  return profileMods(profile, mods).filter((mod) => mod.coverDataUrl);
+}
+
+export function profileMods(profile: ModProfile, mods: InstalledMod[]) {
+  return mods.filter((mod) => profile.enabledModKeys.includes(mod.modKey));
+}
+
+export function potentialOverlaps(mods: InstalledMod[]): PotentialOverlapGroup[] {
+  const groups = new Map<string, InstalledMod[]>();
+  for (const mod of mods) {
+    const key = overlapKey(mod);
+    if (!key) continue;
+    groups.set(key, [...(groups.get(key) ?? []), mod]);
+  }
+  return [...groups.entries()]
+    .filter(([, groupMods]) => groupMods.length > 1)
+    .map(([key, groupMods]) => ({
+      key,
+      characterLabel: groupMods[0].characterName || groupMods[0].characterSlug || "Unknown character",
+      modType: groupMods[0].modType || "mod",
+      mods: groupMods
+    }));
+}
+
+export function enabledPotentialOverlaps(mods: InstalledMod[]) {
+  return potentialOverlaps(mods.filter((mod) => mod.enabled));
+}
+
+export function overlapModPaths(groups: PotentialOverlapGroup[]) {
+  return new Set(groups.flatMap((group) => group.mods.map((mod) => mod.path)));
+}
+
+export function overlapSummaryForMod(mod: InstalledMod, groups: PotentialOverlapGroup[]) {
+  const group = groups.find((item) => item.mods.some((groupMod) => groupMod.path === mod.path));
+  if (!group) return "";
+  const others = group.mods.filter((groupMod) => groupMod.path !== mod.path).map((groupMod) => groupMod.name);
+  return others.length ? `May overlap with: ${others.join(", ")}` : "Potential overlap";
+}
+
+function overlapKey(mod: InstalledMod) {
+  const character = normalizeOverlapPart(mod.characterSlug || mod.characterName);
+  const modType = normalizeOverlapPart(mod.modType);
+  return character && modType ? `${character}:${modType}` : "";
+}
+
+function normalizeOverlapPart(value?: string | null) {
+  const normalized = value?.trim().toLowerCase();
+  return normalized || "";
 }
 
 export const profileIcons = [

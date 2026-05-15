@@ -7,6 +7,8 @@
   export let profiles: ModProfile[] = [];
   export let updateSkins: UpdateSkinMap = {};
   export let busy = false;
+  export let hasPotentialOverlap = false;
+  export let overlapSummary = "";
   export let onToggle: (mod: InstalledMod) => void = () => {};
   export let onRemove: (mod: InstalledMod) => void = () => {};
   export let onAddToProfile: (profile: ModProfile, mod: InstalledMod) => void = () => {};
@@ -15,7 +17,7 @@
   $: updateSkin = updateSkins[mod.path];
 </script>
 
-<article class="group overflow-hidden rounded-lg border border-white/10 bg-card/92 shadow-[0_18px_55px_rgba(0,0,0,0.34)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:border-white/30 {!mod.enabled ? 'grayscale opacity-60' : ''}">
+<article class="group overflow-hidden rounded-lg border bg-card/92 shadow-[0_18px_55px_rgba(0,0,0,0.34)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 {hasPotentialOverlap ? 'border-amber-300/55 shadow-[0_0_0_1px_rgba(251,191,36,0.18),0_18px_55px_rgba(0,0,0,0.34)] hover:border-amber-300/75' : 'border-white/10 hover:border-white/30'} {!mod.enabled ? 'grayscale opacity-60' : ''}" title={overlapSummary}>
   <div class="relative aspect-[16/11] overflow-hidden bg-muted">
     {#if mod.coverDataUrl}
       <img class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.035] {!mod.enabled ? 'brightness-75' : ''}" src={mod.coverDataUrl} alt={mod.name} />
@@ -30,6 +32,9 @@
       <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">Installed</span>
       {#if updateSkin}
         <span class="rounded-full border border-amber-300/50 bg-amber-400/20 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-amber-100 backdrop-blur">To update</span>
+      {/if}
+      {#if hasPotentialOverlap}
+        <span class="rounded-full border border-amber-300/60 bg-amber-400/25 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-amber-100 backdrop-blur">Potential overlap</span>
       {/if}
       <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">{mod.kind}</span>
       <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">{mod.enabled ? "Enabled" : "Disabled"}</span>
@@ -54,6 +59,9 @@
       {/if}
       {#if updateSkin}
         <p class="mt-1 text-xs font-bold text-amber-300">Latest v{updateSkin.version}</p>
+      {/if}
+      {#if hasPotentialOverlap}
+        <p class="mt-2 rounded-md border border-amber-300/25 bg-amber-400/10 px-2 py-1 text-xs font-bold text-amber-200">{overlapSummary}</p>
       {/if}
       {#if mod.dependencies.length}
         <p class="mt-2 line-clamp-1 text-xs font-bold text-muted-foreground">Needs {mod.dependencies.join(", ")}</p>

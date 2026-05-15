@@ -2,7 +2,7 @@
   import Button from "$lib/components/ui/Button.svelte";
   import ProfileIcon from "./ProfileIcon.svelte";
   import ProfileStyleDropdown from "./ProfileStyleDropdown.svelte";
-  import { modInitials, modPageHref, profileColor, profileIcon } from "./helpers";
+  import { modInitials, modPageHref, overlapModPaths, overlapSummaryForMod, potentialOverlaps, profileColor, profileIcon } from "./helpers";
   import type { InstalledMod, ModProfile, UpdateSkinMap } from "./types";
 
   export let profile: ModProfile;
@@ -16,6 +16,8 @@
 
   $: icon = profileIcon(profile);
   $: color = profileColor(profile);
+  $: overlapGroups = potentialOverlaps(mods);
+  $: overlappedPaths = overlapModPaths(overlapGroups);
 </script>
 
 <div class="fixed inset-0 z-50 grid place-items-center p-4">
@@ -34,6 +36,11 @@
           <span class="truncate">{profile.name}</span>
         </h2>
         <p class="mt-1 text-sm text-muted-foreground">{mods.length}/{profile.enabledModKeys.length} linked mods available locally.</p>
+        {#if overlapGroups.length}
+          <p class="mt-2 rounded-md border border-amber-300/25 bg-amber-400/10 px-3 py-2 text-sm font-bold text-amber-200">
+            {overlapGroups.length} potential overlap{overlapGroups.length === 1 ? "" : "s"} in this profile.
+          </p>
+        {/if}
         <div class="mt-3">
           <ProfileStyleDropdown icon={profile.icon} color={profile.color} disabled={busy} onIcon={(value) => onStyle(profile, value, profile.color)} onColor={(value) => onStyle(profile, profile.icon, value)} />
         </div>
@@ -49,7 +56,9 @@
         <section class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {#each mods as mod}
             {@const href = modPageHref(mod)}
-            <article class="group overflow-hidden rounded-lg border border-white/10 bg-card/92 shadow-[0_18px_55px_rgba(0,0,0,0.28)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:border-white/30 {!mod.enabled ? 'grayscale opacity-60' : ''}">
+            {@const hasPotentialOverlap = overlappedPaths.has(mod.path)}
+            {@const overlapSummary = overlapSummaryForMod(mod, overlapGroups)}
+            <article class="group overflow-hidden rounded-lg border bg-card/92 shadow-[0_18px_55px_rgba(0,0,0,0.28)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 {hasPotentialOverlap ? 'border-amber-300/55 shadow-[0_0_0_1px_rgba(251,191,36,0.18),0_18px_55px_rgba(0,0,0,0.28)] hover:border-amber-300/75' : 'border-white/10 hover:border-white/30'} {!mod.enabled ? 'grayscale opacity-60' : ''}" title={overlapSummary}>
               <div class="relative aspect-[16/11] overflow-hidden bg-muted">
                 {#if mod.coverDataUrl}
                   <img class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.035] {!mod.enabled ? 'brightness-75' : ''}" src={mod.coverDataUrl} alt={mod.name} />
@@ -63,6 +72,9 @@
                   <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">{mod.enabled ? "Enabled" : "Disabled"}</span>
                   {#if updateSkins[mod.path]}
                     <span class="rounded-full border border-amber-300/50 bg-amber-400/20 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-amber-100 backdrop-blur">To update</span>
+                  {/if}
+                  {#if hasPotentialOverlap}
+                    <span class="rounded-full border border-amber-300/60 bg-amber-400/25 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-amber-100 backdrop-blur">Potential overlap</span>
                   {/if}
                 </div>
                 {#if href}
@@ -82,6 +94,9 @@
                   {/if}
                   {#if mod.version}
                     <p class="mt-1 text-xs font-bold text-primary">v{mod.version}</p>
+                  {/if}
+                  {#if hasPotentialOverlap}
+                    <p class="mt-2 rounded-md border border-amber-300/25 bg-amber-400/10 px-2 py-1 text-xs font-bold text-amber-200">{overlapSummary}</p>
                   {/if}
                 </div>
 

@@ -38,6 +38,10 @@ fn default_profile_color() -> String {
     "violet".to_string()
 }
 
+fn default_warn_on_potential_overlap() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LauncherConfig {
@@ -58,6 +62,8 @@ pub struct LauncherConfig {
     pub mod_profiles: Vec<ModProfile>,
     #[serde(default)]
     pub debug_logs: bool,
+    #[serde(default = "default_warn_on_potential_overlap")]
+    pub warn_on_potential_overlap: bool,
 }
 
 impl Default for LauncherConfig {
@@ -75,6 +81,7 @@ impl Default for LauncherConfig {
             last_launch_at: None,
             mod_profiles: Vec::new(),
             debug_logs: false,
+            warn_on_potential_overlap: true,
         }
     }
 }
@@ -124,8 +131,26 @@ mod tests {
         assert_eq!(config.launch_mode, LaunchMode::Steam);
         assert_eq!(config.modloader_repo, "Glubus/oppw4-patcher");
         assert!(!config.debug_logs);
+        assert!(config.warn_on_potential_overlap);
         assert!(config.installed_files.is_empty());
         assert!(config.mod_profiles.is_empty());
+    }
+
+    #[test]
+    fn launcher_config_deserialization_defaults_overlap_warning_to_enabled() {
+        let raw = r#"{
+            "launchMode": "steam",
+            "gameFolder": null,
+            "gameExecutablePath": null,
+            "modloaderRepo": "Glubus/oppw4-patcher",
+            "modloaderRelease": null,
+            "installedFiles": [],
+            "lastLaunchAt": null
+        }"#;
+
+        let config: LauncherConfig = serde_json::from_str(raw).unwrap();
+
+        assert!(config.warn_on_potential_overlap);
     }
 
     #[test]

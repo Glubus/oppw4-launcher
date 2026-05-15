@@ -1,17 +1,13 @@
 <script lang="ts">
   import ChevronIcon from "$lib/components/atoms/ChevronIcon.svelte";
   import Button from "$lib/components/ui/Button.svelte";
-  import { profileColor, profileIcon } from "$lib/components/launcher/helpers";
+  import { potentialOverlaps, profileColor, profileIcon } from "$lib/components/launcher/helpers";
   import ProfileIcon from "$lib/components/launcher/ProfileIcon.svelte";
-  import type { ModProfile } from "$lib/components/launcher/types";
-
-  type InstalledMod = {
-    name: string;
-    coverDataUrl?: string | null;
-  };
+  import type { InstalledMod, ModProfile } from "$lib/components/launcher/types";
 
   export let profile: ModProfile;
   export let previewMods: InstalledMod[] = [];
+  export let availableMods: InstalledMod[] = [];
   export let availableCount = 0;
   export let busy = false;
   export let onOpen: (profile: ModProfile) => void = () => {};
@@ -25,6 +21,7 @@
   $: preview = images[activeImage];
   $: icon = profileIcon(profile);
   $: color = profileColor(profile);
+  $: overlapGroups = potentialOverlaps(availableMods);
 
   function previousImage() {
     if (images.length < 2) return;
@@ -56,6 +53,9 @@
       {#if images.length > 1}
         <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black text-white backdrop-blur">{activeImage + 1}/{images.length}</span>
       {/if}
+      {#if overlapGroups.length}
+        <span class="rounded-full border border-amber-300/60 bg-amber-400/25 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-amber-100 backdrop-blur">Potential overlap</span>
+      {/if}
     </div>
 
     {#if images.length > 1}
@@ -79,7 +79,11 @@
     </div>
 
     <p class="line-clamp-2 min-h-11 text-sm leading-5 text-muted-foreground">
-      Opens with {availableCount} locally available mod{availableCount === 1 ? "" : "s"}.
+      {#if overlapGroups.length}
+        {overlapGroups.length} potential overlap{overlapGroups.length === 1 ? "" : "s"} in this profile.
+      {:else}
+        Opens with {availableCount} locally available mod{availableCount === 1 ? "" : "s"}.
+      {/if}
     </p>
 
     <div class="grid grid-cols-2 gap-2">

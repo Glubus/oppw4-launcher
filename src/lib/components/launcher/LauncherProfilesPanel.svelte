@@ -2,7 +2,7 @@
   import Button from "$lib/components/ui/Button.svelte";
   import LauncherProfileCard from "$lib/components/molecules/LauncherProfileCard.svelte";
   import ProfileCreateModal from "./ProfileCreateModal.svelte";
-  import { profileModCount, profilePreviewMods } from "./helpers";
+  import { profileModCount, profilePreviewMods, profileMods } from "./helpers";
   import type { InstalledMod, ModProfile } from "./types";
 
   export let profiles: ModProfile[] = [];
@@ -91,6 +91,7 @@
         <LauncherProfileCard
           {profile}
           previewMods={profilePreviewMods(profile, installedMods)}
+          availableMods={profileMods(profile, installedMods)}
           availableCount={profileModCount(profile, installedMods)}
           {busy}
           {onOpen}
