@@ -7,7 +7,6 @@
   import DesktopOnlyCard from "$lib/components/launcher/DesktopOnlyCard.svelte";
   import LauncherChangelogPanel from "$lib/components/launcher/LauncherChangelogPanel.svelte";
   import LauncherHero from "$lib/components/launcher/LauncherHero.svelte";
-  import LauncherMessages from "$lib/components/launcher/LauncherMessages.svelte";
   import LauncherModsPanel from "$lib/components/launcher/LauncherModsPanel.svelte";
   import LauncherProfilesPanel from "$lib/components/launcher/LauncherProfilesPanel.svelte";
   import LauncherSettingsPanel from "$lib/components/launcher/LauncherSettingsPanel.svelte";
@@ -19,13 +18,12 @@
   import * as profileActions from "$lib/components/launcher/profileActions";
   import * as updateActions from "$lib/components/launcher/updateActions";
   import { defaultLauncherConfig, type ActiveLauncherPanel, type DetectedGame, type HealthCheckItem, type InstalledMod, type LauncherConfig, type LauncherState, type ModProfile, type ReleaseInfo } from "$lib/components/launcher/types";
+  import { toastStore } from "$lib/stores/toasts";
 
   let config = defaultLauncherConfig;
   let detectedGame: DetectedGame | null = null;
   let loading = true;
   let busy = false;
-  let error = "";
-  let message = "";
   let isDesktop = false;
   let installedMods: InstalledMod[] = [];
   let modloaderStatus = "Missing";
@@ -41,6 +39,14 @@
   let selectedProfile: ModProfile | null = null;
   let healthItems: HealthCheckItem[] = [];
   let lastUpdateFingerprint = "";
+  let launcherLogs: LauncherLogEntry[] = [];
+
+  type LauncherLogEntry = {
+    id: string;
+    time: string;
+    level: "success" | "error";
+    message: string;
+  };
 
   $: hasGameFolder = Boolean(config.gameFolder);
   $: canLaunch = config.launchMode === "steam" || Boolean(config.gameExecutablePath);
@@ -61,7 +67,7 @@
     getConfig: () => config, setConfig: (value) => (config = value), getDetectedGame: () => detectedGame, getInstalledMods: () => installedMods,
     getProfileName: () => profileName, setProfileName: (value) => (profileName = value), getSelectedProfile: () => selectedProfile, setSelectedProfile: (value) => (selectedProfile = value),
     getUpdateSkins: () => updateSkins, setUpdateSkins: (value) => (updateSkins = value), setCheckingUpdates: (value) => (checkingUpdates = value), setUpdatingAll: (value) => (updatingAll = value),
-    setError: (value) => (error = value), setMessage: (value) => (message = value), load: () => load(), save: () => save(), saveAndRefresh: (success) => saveAndRefresh(success), runBusy: (action, fallback) => runBusy(action, fallback)
+    setError: notifyError, setMessage: notifySuccess, load: () => load(), save: () => save(), saveAndRefresh: (success) => saveAndRefresh(success), runBusy: (action, fallback) => runBusy(action, fallback)
   };
 
   onMount(() => {
@@ -87,7 +93,6 @@
 
   async function load() {
     loading = true;
-    error = "";
     try {
       const state = await invoke<LauncherState>("get_launcher_state");
       config = state.config;
@@ -99,7 +104,7 @@
       localModloaderSha256 = state.localModloaderSha256 ?? null;
       remoteModloaderSha256 = state.remoteModloaderSha256 ?? null;
     } catch (err) {
-      error = errorMessage(err, "Could not load launcher state");
+      notifyError(errorMessage(err, "Could not load launcher state"));
     } finally {
       loading = false;
     }
@@ -110,39 +115,57 @@
   }
 
   async function saveAndRefresh(success: string) {
-    error = "";
-    message = "";
     try {
       await save();
       await load();
-      message = success;
+      notifySuccess(success);
     } catch (err) {
-      error = errorMessage(err, "Could not save config");
+      notifyError(errorMessage(err, "Could not save config"));
     }
   }
 
   async function runBusy(action: () => Promise<void>, fallback: string) {
     busy = true;
-    error = "";
-    message = "";
     try {
       await action();
     } catch (err) {
-      error = errorMessage(err, fallback);
+      notifyError(errorMessage(err, fallback));
     } finally {
       busy = false;
     }
   }
 
   async function runHealthCheck() {
-    error = "";
-    message = "";
     try {
       await nativeActions.runHealthCheck((items) => (healthItems = items));
-      message = "Health check complete.";
+      notifySuccess("Health check complete.");
     } catch (err) {
-      error = errorMessage(err, "Could not run health check");
+      notifyError(errorMessage(err, "Could not run health check"));
     }
+  }
+
+  function notifySuccess(value: string) {
+    if (!value) return;
+    toastStore.push(value, "success");
+    pushLauncherLog("success", value);
+  }
+
+  function notifyError(value: string) {
+    if (!value) return;
+    toastStore.push(value, "error");
+    pushLauncherLog("error", value);
+  }
+
+  function pushLauncherLog(level: LauncherLogEntry["level"], message: string) {
+    launcherLogs = [
+      {
+        id: crypto.randomUUID(),
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+        level,
+        message
+      },
+      ...launcherLogs
+    ].slice(0, 12);
   }
 
   function createProfile(icon: string, color: string) {
@@ -190,7 +213,6 @@
   {#if !isDesktop}
     <DesktopOnlyCard />
   {:else}
-    <LauncherMessages {error} {message} />
     <Card class="w-full p-3">
       <LauncherTabs {activePanel} onSelect={(panel) => (activePanel = panel)} />
 
@@ -199,7 +221,7 @@
       {:else if activePanel === "profiles"}
         <LauncherProfilesPanel profiles={config.modProfiles} {installedMods} bind:profileName {busy} onCreateWithStyle={createProfile} onSaveEnabledWithStyle={saveEnabledProfile} onOpen={openProfile} onApply={applyProfile} onDelete={deleteProfile} />
       {:else if activePanel === "settings"}
-        <LauncherSettingsPanel bind:config {detectedGame} {hasGameFolder} {healthItems} {busy} onUseDetected={() => nativeActions.useDetectedGame(ctx)} onSetLaunchMode={(mode) => nativeActions.setLaunchMode(ctx, mode)} onChooseGameFolder={() => nativeActions.chooseGameFolder(ctx)} onChooseExecutable={() => nativeActions.chooseExecutable(ctx)} onRepositoryChange={() => saveAndRefresh("Repository saved.")} onRunHealth={runHealthCheck} onExportDiagnostics={() => nativeActions.exportDiagnostics(ctx)} />
+        <LauncherSettingsPanel bind:config {detectedGame} {hasGameFolder} {healthItems} logs={launcherLogs} {busy} onUseDetected={() => nativeActions.useDetectedGame(ctx)} onSetLaunchMode={(mode) => nativeActions.setLaunchMode(ctx, mode)} onChooseGameFolder={() => nativeActions.chooseGameFolder(ctx)} onChooseExecutable={() => nativeActions.chooseExecutable(ctx)} onRepositoryChange={() => saveAndRefresh("Repository saved.")} onRunHealth={runHealthCheck} onExportDiagnostics={() => nativeActions.exportDiagnostics(ctx)} />
       {:else}
         <LauncherChangelogPanel {latestRelease} />
       {/if}
