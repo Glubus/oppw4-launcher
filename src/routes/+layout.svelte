@@ -1,7 +1,11 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import "../styles.css";
   import AmethystBackground from "$lib/components/layout/AmethystBackground.svelte";
   import ToastHost from "$lib/components/organisms/ToastHost.svelte";
+  import { installExternalLinkHandler } from "$lib/utils/externalLinks";
+
+  onMount(installExternalLinkHandler);
 </script>
 
 <AmethystBackground />
