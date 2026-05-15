@@ -77,13 +77,13 @@
 </script>
 
 <div class="min-w-0 p-2 pt-5">
-  <div class="mb-5 flex items-center justify-between gap-3">
+  <div class="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
     <div>
       <h2 class="text-xl font-black">Installed mods</h2>
       <p class="mt-1 text-sm text-muted-foreground">{filteredInstalledMods.length}/{installedMods.length} found in your mods folder.</p>
     </div>
-    <div class="flex flex-wrap gap-2">
-      <Button variant="outline" size="sm" disabled={busy || !hasGameFolder} on:click={onImportZip}>Import ZIP</Button>
+    <div class="flex flex-wrap gap-2 lg:justify-end">
+      <Button disabled={busy || !hasGameFolder} on:click={onImportZip}>Import ZIP</Button>
       {#if updateCount}
         <Button size="sm" disabled={updatingAll} on:click={onUpdateAll}>{updatingAll ? "Updating..." : `Update all (${updateCount})`}</Button>
       {/if}
