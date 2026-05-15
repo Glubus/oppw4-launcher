@@ -76,7 +76,7 @@
   }
 </script>
 
-<div class="p-2 pt-5">
+<div class="min-w-0 p-2 pt-5">
   <div class="mb-5 flex items-center justify-between gap-3">
     <div>
       <h2 class="text-xl font-black">Installed mods</h2>
@@ -93,15 +93,19 @@
     </div>
   </div>
 
-  <section class="relative z-30 grid gap-3 overflow-visible rounded-lg border border-white/10 bg-card/86 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-md lg:grid-cols-[1fr_210px_240px_180px_160px_auto]">
-    <label class="input input-bordered flex items-center gap-2 bg-background/60">
+  <section class="relative z-30 grid min-w-0 gap-3 overflow-visible rounded-lg border border-white/10 bg-card/86 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-md sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_repeat(4,minmax(0,150px))_minmax(0,90px)]">
+    <label class="input input-bordered flex min-w-0 items-center gap-2 bg-background/60">
       <span class="font-black text-primary">⌕</span>
-      <input bind:value={modSearch} placeholder="Search mod, character, version..." />
+      <input class="min-w-0" bind:value={modSearch} placeholder="Search mod, character, version..." />
     </label>
-    <ModTypeCombobox value={modType} onChange={selectModType} />
-    <CharacterCombobox characters={installedCharacters} value={modCharacter} placeholder="All characters" valueKey="slug" includeAll={true} onChange={selectCharacter} />
+    <div class="min-w-0">
+      <ModTypeCombobox value={modType} onChange={selectModType} />
+    </div>
+    <div class="min-w-0">
+      <CharacterCombobox characters={installedCharacters} value={modCharacter} placeholder="All characters" valueKey="slug" includeAll={true} onChange={selectCharacter} />
+    </div>
 
-    <details class="relative z-40 w-full" bind:this={statusDetails}>
+    <details class="relative z-40 min-w-0 w-full" bind:this={statusDetails}>
       <summary class="flex h-10 w-full cursor-pointer list-none items-center justify-between rounded-md border border-white/12 bg-background/55 px-3 text-sm font-medium text-foreground shadow-sm outline-none transition-colors hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-ring">
         <span class="truncate">{statusOptions.find((item) => item.value === modStatus)?.label ?? "All status"}</span>
         <span class="text-muted-foreground">⌄</span>
@@ -115,8 +119,10 @@
       </div>
     </details>
 
-    <SortCombobox value={modSort} onChange={selectSort} />
-    <Button variant="outline" type="button" on:click={resetInstalledFilters}>Reset</Button>
+    <div class="min-w-0">
+      <SortCombobox value={modSort} onChange={selectSort} />
+    </div>
+    <Button class="w-full" variant="outline" type="button" on:click={resetInstalledFilters}>Reset</Button>
   </section>
 
   {#if !hasGameFolder}
