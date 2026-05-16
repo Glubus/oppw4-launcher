@@ -56,11 +56,11 @@
 
   $: hasGameFolder = Boolean(config.gameFolder);
   $: canLaunch = config.launchMode === "steam" || Boolean(config.gameExecutablePath);
-  $: isInstalled = config.installedFiles.length > 0;
+  $: hasTrackedPatcherInstall = config.installedFiles.length > 0;
   $: currentRelease = config.modloaderRelease || "Not installed";
   $: latestReleaseLabel = latestRelease?.tagName || "";
   $: latestReleaseDate = latestRelease?.publishedAt || "";
-  $: updateLabel = !isInstalled ? "Install patcher" : needsPatcherUpdate ? "Update patcher" : "";
+  $: updateLabel = patcherActionLabel(modloaderStatus, hasTrackedPatcherInstall, needsPatcherUpdate);
   $: updateCount = installedMods.filter((mod) => Boolean(updateSkins[mod.path])).length;
   $: selectedProfileMods = selectedProfile ? installedMods.filter((mod) => selectedProfile?.enabledModKeys.includes(mod.modKey)) : [];
   $: installedModsFingerprint = installedMods.map((mod) => [mod.path, mod.version ?? "", mod.slug ?? "", mod.sourceUrl ?? ""].join("|")).join("::");
@@ -116,6 +116,15 @@
     needsPatcherUpdate = state.needsPatcherUpdate;
     localModloaderSha256 = state.localModloaderSha256;
     remoteModloaderSha256 = state.remoteModloaderSha256;
+  }
+
+  function patcherActionLabel(status: string, hasTrackedInstall: boolean, needsUpdate: boolean) {
+    const normalized = status.toLowerCase();
+    if (needsUpdate) return hasTrackedInstall ? "Update patcher" : "Install patcher";
+    if (normalized === "installed") return "";
+    if (normalized.includes("missing installed") || normalized.includes("modified")) return "Repair patcher";
+    if (normalized === "missing" || normalized.includes("unmanaged")) return "Install patcher";
+    return hasTrackedInstall ? "Repair patcher" : "Install patcher";
   }
 
   async function startup() {
