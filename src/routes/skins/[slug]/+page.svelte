@@ -92,8 +92,8 @@
         filters: [{ name: "ZIP archive", extensions: ["zip"] }]
       });
       if (typeof selected !== "string") return;
-      await invoke("apply_metadata_to_zip", { input: { skinId: skin.id, zipPath: selected } });
-      installMessage = "Metadata installed into the selected ZIP.";
+      installedMod = await invoke<InstalledMod>("apply_metadata_to_zip", { input: { skinId: skin.id, zipPath: selected } });
+      installMessage = "Metadata installed and mod linked in your mods folder.";
     } catch (err) {
       error = err instanceof Error ? err.message : typeof err === "string" ? err : "Could not install metadata";
     } finally {

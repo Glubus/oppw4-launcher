@@ -12,6 +12,7 @@
 - Add secondary Settings tabs for Game, Patcher, and Launcher status.
 - Add a Steam launch executable override with disabled Game install controls until enabled.
 - Add potential overlap warnings before launch with an option to disable future warnings.
+- Move linked local ZIP mods into the game mods folder while embedding skin metadata.
 
 #### Added
 
@@ -33,6 +34,7 @@
 
 - Throttle automatic launcher update checks and show a clearer GitHub rate-limit message.
 - Prevent a Windows command prompt from opening when starting the launcher.
+- Show a repair action when the tracked patcher install is missing from the game folder.
 
 ### Developer
 
