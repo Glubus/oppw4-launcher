@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.2 - 2026-05-16
+
+### User-facing
+
+#### Features
+
+- Move linked local ZIP mods into the game mods folder while embedding skin metadata.
+- Add a Browse filter to show or hide skins that are already installed locally.
+
+#### Changed
+
+- Make the top navigation use the full available width on narrow browser windows.
+
+#### Fixed
+
+- Show a repair action when the tracked patcher install is missing from the game folder.
+
 ## 0.1.1 "Sunny Side Up" - 2026-05-15
 
 ### User-facing
@@ -12,7 +29,6 @@
 - Add secondary Settings tabs for Game, Patcher, and Launcher status.
 - Add a Steam launch executable override with disabled Game install controls until enabled.
 - Add potential overlap warnings before launch with an option to disable future warnings.
-- Move linked local ZIP mods into the game mods folder while embedding skin metadata.
 
 #### Added
 
@@ -34,7 +50,6 @@
 
 - Throttle automatic launcher update checks and show a clearer GitHub rate-limit message.
 - Prevent a Windows command prompt from opening when starting the launcher.
-- Show a repair action when the tracked patcher install is missing from the game folder.
 
 ### Developer
 

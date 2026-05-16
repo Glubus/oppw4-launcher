@@ -1,6 +1,6 @@
 [package]
 name = "oppw4-launcher"
-version = "0.1.1"
+version = "0.1.2"
 description = "OPPW4 mod launcher"
 authors = ["OPPW4 Modding Community"]
 edition = "2021"
