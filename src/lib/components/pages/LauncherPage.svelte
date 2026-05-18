@@ -267,7 +267,9 @@
       <LauncherTabs {activePanel} onSelect={(panel) => (activePanel = panel)} />
 
       {#if activePanel === "mods"}
-        <LauncherModsPanel installedMods={installedMods} profiles={config.modProfiles} {updateSkins} {hasGameFolder} {busy} {checkingUpdates} {updatingAll} {updateCount} onImportZip={() => nativeActions.importExternalZip(ctx)} onUpdateAll={() => updateActions.updateAllInstalledMods(ctx)} onToggleMod={(mod) => nativeActions.toggleInstalledMod(ctx, mod)} onRemoveMod={(mod) => nativeActions.removeInstalledMod(ctx, mod)} onAddToProfile={(profile, mod) => profileActions.addModToProfile(ctx, profile, mod)} />
+        <LauncherModsPanel contentKind="mod" installedMods={installedMods} profiles={config.modProfiles} {updateSkins} {hasGameFolder} {busy} {checkingUpdates} {updatingAll} {updateCount} onImportZip={() => nativeActions.importExternalZip(ctx)} onUpdateAll={() => updateActions.updateAllInstalledMods(ctx)} onToggleMod={(mod) => nativeActions.toggleInstalledMod(ctx, mod)} onRemoveMod={(mod) => nativeActions.removeInstalledMod(ctx, mod)} onAddToProfile={(profile, mod) => profileActions.addModToProfile(ctx, profile, mod)} />
+      {:else if activePanel === "plugins"}
+        <LauncherModsPanel contentKind="plugin" installedMods={installedMods} profiles={config.modProfiles} {updateSkins} {hasGameFolder} {busy} checkingUpdates={false} {updatingAll} updateCount={0} onToggleMod={(mod) => nativeActions.toggleInstalledMod(ctx, mod)} onRemoveMod={(mod) => nativeActions.removeInstalledMod(ctx, mod)} onAddToProfile={(profile, mod) => profileActions.addModToProfile(ctx, profile, mod)} />
       {:else if activePanel === "profiles"}
         <LauncherProfilesPanel profiles={config.modProfiles} {installedMods} bind:profileName {busy} onCreateWithStyle={createProfile} onSaveEnabledWithStyle={saveEnabledProfile} onOpen={openProfile} onApply={applyProfile} onDelete={deleteProfile} />
       {:else if activePanel === "settings"}

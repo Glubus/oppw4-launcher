@@ -22,9 +22,9 @@
   });
 </script>
 
-<header class="sticky top-0 z-20 w-full border-b border-border/70 bg-background/72 backdrop-blur-xl">
-  <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-3 px-4 py-3 md:flex-nowrap md:gap-4">
-    <div class="min-w-0 flex-1">
+<header class="sticky top-0 z-20 border-b border-border/70 bg-background/72 backdrop-blur-xl">
+  <div class="mx-auto grid max-w-7xl gap-3 px-4 py-3 md:flex md:items-center md:gap-4">
+    <div class="min-w-0 md:flex-1">
       <BrandMark />
     </div>
 
@@ -40,19 +40,15 @@
       {/if}
     </nav>
 
-    <nav class="order-3 flex w-full min-w-0 items-center gap-1 overflow-x-auto border-t border-white/10 pt-2 md:hidden">
-      <Button href="/launcher" variant="ghost" size="sm">Launcher</Button>
-      <Button href="/" variant="ghost" size="sm">Browse</Button>
-      <Button href="/upload" variant="ghost" size="sm">Upload</Button>
-      {#if canAccessAdmin}
-        <Button href="/admin" variant="ghost" size="sm">Admin</Button>
-      {/if}
-      {#if current}
-        <Button href="/settings" variant="ghost" size="sm">Settings</Button>
-      {/if}
-    </nav>
-
-    <div class="flex shrink-0 items-center justify-end gap-2">
+    <div class="flex min-w-0 items-center justify-between gap-2 md:flex-1 md:justify-end">
+      <nav class="flex min-w-0 items-center gap-1 overflow-x-auto md:hidden">
+        <Button href="/launcher" variant="ghost" size="sm">Launcher</Button>
+        <Button href="/" variant="ghost" size="sm">Browse</Button>
+        <Button href="/upload" variant="ghost" size="sm">Upload</Button>
+        {#if current}
+          <Button href="/settings" variant="ghost" size="sm">Settings</Button>
+        {/if}
+      </nav>
       {#if current}
         <div class="hidden text-right sm:block">
           <a class="text-sm font-black leading-none text-foreground hover:underline" href={`/users/${encodeURIComponent(current.user.username)}`}>

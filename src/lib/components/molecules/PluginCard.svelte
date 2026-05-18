@@ -16,6 +16,7 @@
   $: creatorHref = plugin.creatorSlug ? `/creators/${encodeURIComponent(plugin.creatorSlug)}` : null;
   $: docsPreview = markdownToPlainText(plugin.docs);
   $: file = plugin.files?.[0];
+  $: dependencies = plugin.dependencies ?? [];
   $: initials = plugin.title
     .split(/\s+/)
     .slice(0, 2)
@@ -86,8 +87,8 @@
       <StatPill label="downloads" value={plugin.downloadCount} tone="neutral" />
     </div>
 
-    {#if plugin.dependencies.length}
-      <p class="rounded-md border border-white/10 bg-background/45 p-2 text-xs font-bold text-muted-foreground">Needs {plugin.dependencies.join(", ")}</p>
+    {#if dependencies.length}
+      <p class="rounded-md border border-white/10 bg-background/45 p-2 text-xs font-bold text-muted-foreground">Needs {dependencies.join(", ")}</p>
     {/if}
 
     <div class="flex items-center justify-between gap-3 border-t border-white/10 pt-4 text-sm">

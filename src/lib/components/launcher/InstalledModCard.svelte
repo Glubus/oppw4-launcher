@@ -15,6 +15,7 @@
 
   $: href = modPageHref(mod);
   $: updateSkin = updateSkins[mod.path];
+  $: dependencies = mod.dependencies ?? [];
 </script>
 
 <article class="group overflow-hidden rounded-lg border bg-card/92 shadow-[0_18px_55px_rgba(0,0,0,0.34)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 {hasPotentialOverlap ? 'border-amber-300/55 shadow-[0_0_0_1px_rgba(251,191,36,0.18),0_18px_55px_rgba(0,0,0,0.34)] hover:border-amber-300/75' : 'border-white/10 hover:border-white/30'} {!mod.enabled ? 'grayscale opacity-60' : ''}" title={overlapSummary}>
@@ -63,8 +64,8 @@
       {#if hasPotentialOverlap}
         <p class="mt-2 rounded-md border border-amber-300/25 bg-amber-400/10 px-2 py-1 text-xs font-bold text-amber-200">{overlapSummary}</p>
       {/if}
-      {#if mod.dependencies.length}
-        <p class="mt-2 line-clamp-1 text-xs font-bold text-muted-foreground">Needs {mod.dependencies.join(", ")}</p>
+      {#if dependencies.length}
+        <p class="mt-2 line-clamp-1 text-xs font-bold text-muted-foreground">Needs {dependencies.join(", ")}</p>
       {/if}
       {#if mod.changelog}
         <details class="mt-2 rounded-md border border-white/10 bg-background/45 p-2 text-xs text-muted-foreground">

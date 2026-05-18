@@ -8,6 +8,7 @@
   import type { InstalledMod, ModProfile, UpdateSkinMap } from "./types";
 
   export let installedMods: InstalledMod[] = [];
+  export let contentKind: "mod" | "plugin" = "mod";
   export let profiles: ModProfile[] = [];
   export let updateSkins: UpdateSkinMap = {};
   export let hasGameFolder = false;
@@ -35,18 +36,19 @@
   let modSort = "recent";
   let statusDetails: HTMLDetailsElement;
 
-  $: installedCharacters = localCharacters(installedMods);
-  $: overlapGroups = enabledPotentialOverlaps(installedMods);
+  $: panelItems = installedMods.filter((mod) => (mod.contentKind ?? "mod") === contentKind);
+  $: installedCharacters = localCharacters(panelItems);
+  $: overlapGroups = contentKind === "mod" ? enabledPotentialOverlaps(panelItems) : [];
   $: overlappedPaths = overlapModPaths(overlapGroups);
   $: filteredInstalledMods = sortInstalledMods(
-    installedMods.filter((mod) => matchesModFilters(mod, modSearch, modCharacter, modType, modStatus)),
+    panelItems.filter((mod) => matchesModFilters(mod, modSearch, modCharacter, modType, modStatus)),
     modSort
   );
 
   function matchesModFilters(mod: InstalledMod, search: string, character: string, type: string, status: string) {
     const query = search.trim().toLowerCase();
     const matchesQuery = !query || [mod.name, mod.version, mod.characterName, mod.characterSlug, mod.modType, mod.slug].some((part) => part?.toLowerCase().includes(query));
-    const matchesCharacter = !character || installedModCharacterSlug(mod) === character;
+    const matchesCharacter = contentKind === "plugin" || !character || installedModCharacterSlug(mod) === character;
     const matchesType = !type || mod.modType === type;
     const matchesStatus = !status || (status === "enabled" ? mod.enabled : status === "disabled" ? !mod.enabled : Boolean(updateSkins[mod.path]));
     return matchesQuery && matchesCharacter && matchesType && matchesStatus;
@@ -81,12 +83,14 @@
 <div class="min-w-0 p-2 pt-5">
   <div class="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
     <div>
-      <h2 class="text-xl font-black">Installed mods</h2>
-      <p class="mt-1 text-sm text-muted-foreground">{filteredInstalledMods.length}/{installedMods.length} found in your mods folder.</p>
+      <h2 class="text-xl font-black">Installed {contentKind === "plugin" ? "plugins" : "mods"}</h2>
+      <p class="mt-1 text-sm text-muted-foreground">{filteredInstalledMods.length}/{panelItems.length} found in your {contentKind === "plugin" ? "plugins" : "mods"} folder.</p>
     </div>
     <div class="flex flex-wrap gap-2 lg:justify-end">
-      <Button disabled={busy || !hasGameFolder} on:click={onImportZip}>Import ZIP</Button>
-      {#if updateCount}
+      {#if contentKind === "mod"}
+        <Button disabled={busy || !hasGameFolder} on:click={onImportZip}>Import ZIP</Button>
+      {/if}
+      {#if contentKind === "mod" && updateCount}
         <Button size="sm" disabled={updatingAll} on:click={onUpdateAll}>{updatingAll ? "Updating..." : `Update all (${updateCount})`}</Button>
       {/if}
       {#if checkingUpdates}
@@ -100,12 +104,14 @@
       <span class="font-black text-primary">⌕</span>
       <input class="min-w-0" bind:value={modSearch} placeholder="Search mod, character, version..." />
     </label>
-    <div class="min-w-0">
-      <ModTypeCombobox value={modType} onChange={selectModType} />
-    </div>
-    <div class="min-w-0">
-      <CharacterCombobox characters={installedCharacters} value={modCharacter} placeholder="All characters" valueKey="slug" includeAll={true} onChange={selectCharacter} />
-    </div>
+    {#if contentKind === "mod"}
+      <div class="min-w-0">
+        <ModTypeCombobox value={modType} onChange={selectModType} />
+      </div>
+      <div class="min-w-0">
+        <CharacterCombobox characters={installedCharacters} value={modCharacter} placeholder="All characters" valueKey="slug" includeAll={true} onChange={selectCharacter} />
+      </div>
+    {/if}
 
     <details class="relative z-40 min-w-0 w-full" bind:this={statusDetails}>
       <summary class="flex h-10 w-full cursor-pointer list-none items-center justify-between rounded-md border border-white/12 bg-background/55 px-3 text-sm font-medium text-foreground shadow-sm outline-none transition-colors hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-ring">
@@ -128,7 +134,7 @@
   </section>
 
   {#if !hasGameFolder}
-    <p class="rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">Select a game folder in Settings to scan installed mods.</p>
+    <p class="rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">Select a game folder in Settings to scan installed {contentKind === "plugin" ? "plugins" : "mods"}.</p>
   {:else if filteredInstalledMods.length}
     <section class="mt-5 grid w-full gap-5 md:grid-cols-2 xl:grid-cols-3">
       {#each filteredInstalledMods as mod}
@@ -146,6 +152,6 @@
       {/each}
     </section>
   {:else}
-    <p class="mt-5 rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">{installedMods.length ? "No installed mods match this search." : "No installed mods found. Create a mods/ folder next to the game executable and add mod folders or zip files."}</p>
+    <p class="mt-5 rounded-lg border border-white/12 bg-background/45 p-4 text-sm text-muted-foreground">{panelItems.length ? `No installed ${contentKind === "plugin" ? "plugins" : "mods"} match this search.` : `No installed ${contentKind === "plugin" ? "plugins" : "mods"} found.`}</p>
   {/if}
 </div>

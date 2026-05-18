@@ -1,7 +1,7 @@
 import type { Skin } from "$lib/api";
 
 export type LaunchMode = "steam" | "executable";
-export type ActiveLauncherPanel = "mods" | "profiles" | "settings" | "changelog";
+export type ActiveLauncherPanel = "mods" | "plugins" | "profiles" | "settings" | "changelog";
 export type HealthLevel = "ok" | "warn" | "error";
 
 export type InstalledFile = {
@@ -70,6 +70,7 @@ export type LauncherUpdateInfo = {
   currentVersion: string;
   latestVersion: string;
   releaseName?: string | null;
+  body?: string | null;
   htmlUrl: string;
   assetName?: string | null;
   assetSize?: number | null;

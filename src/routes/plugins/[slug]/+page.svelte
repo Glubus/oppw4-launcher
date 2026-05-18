@@ -17,6 +17,7 @@
   $: creatorHref = plugin?.creatorSlug ? `/creators/${encodeURIComponent(plugin.creatorSlug)}` : null;
   $: isDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   $: luaModuleName = plugin?.luaModuleName ?? plugin?.slug.replaceAll("-", "_") ?? "";
+  $: dependencies = plugin?.dependencies ?? [];
 
   onMount(async () => {
     try {
@@ -81,8 +82,8 @@
 
     <Card class="p-5">
       <MarkdownContent value={plugin.docs} />
-      {#if plugin.dependencies.length}
-        <p class="mt-4 rounded-md border border-white/10 bg-background/45 p-3 text-sm font-bold text-muted-foreground">Needs {plugin.dependencies.join(", ")}</p>
+      {#if dependencies.length}
+        <p class="mt-4 rounded-md border border-white/10 bg-background/45 p-3 text-sm font-bold text-muted-foreground">Needs {dependencies.join(", ")}</p>
       {/if}
       {#if luaModuleName}
         <p class="mt-4 rounded-md border border-white/10 bg-background/45 p-3 text-sm font-bold text-muted-foreground">Lua usage: <code class="text-foreground">require("{luaModuleName}")</code></p>

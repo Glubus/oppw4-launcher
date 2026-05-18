@@ -9,6 +9,7 @@
   import PluginGrid from "$lib/components/organisms/PluginGrid.svelte";
   import Button from "$lib/components/ui/Button.svelte";
   import { toastStore } from "$lib/stores/toasts";
+  import { invoke } from "@tauri-apps/api/core";
 
   const PAGE_SIZE = 12;
 
@@ -27,8 +28,12 @@
     totalCount: number;
     pagination: SkinListResponse["pagination"];
   };
+  type InstalledMod = {
+    path: string;
+  };
 
   let skins: Skin[] = [];
+  let visibleSkins: Skin[] = [];
   let plugins: Plugin[] = [];
   let characters: Character[] = [];
   let query = "";
@@ -36,6 +41,9 @@
   let character = "";
   let modType = "";
   let sort = "recent";
+  let showAlreadyInstalled = false;
+  let isDesktop = false;
+  let installedSkinIds = new Set<string>();
   let loading = true;
   let loadingMore = false;
   let error = "";
@@ -46,6 +54,7 @@
   let observer: IntersectionObserver;
 
   onMount(() => {
+    isDesktop = "__TAURI_INTERNALS__" in window;
     void loadCharacters();
     void load(true);
     observer = new IntersectionObserver((entries) => {
@@ -89,7 +98,9 @@
         if (character) params.set("character", character);
         if (modType) params.set("modType", modType);
         const skinData = await apiFetch<SkinListResponse>(`/skins?${params}`);
+        await refreshInstalledSkinState(skinData.skins);
         skins = reset ? skinData.skins : [...skins, ...skinData.skins];
+        visibleSkins = filteredSkins(skins);
         page = skinData.pagination.page;
         total = skinData.totalCount;
         hasMore = skinData.pagination.hasMore;
@@ -117,9 +128,32 @@
       const result = await apiFetch<{ voteCount: number }>(`/skins/${skin.id}/vote`, { method: "POST" }, current.token);
       skin.voteCount = result.voteCount;
       skins = skins;
+      visibleSkins = filteredSkins(skins);
     } catch (err) {
       error = err instanceof Error ? err.message : "Vote impossible";
     }
+  }
+
+  async function refreshInstalledSkinState(items: Skin[]) {
+    if (!isDesktop) return;
+    const installedIds = new Set(installedSkinIds);
+    await Promise.all(items.map(async (skin) => {
+      try {
+        const installed = await invoke<InstalledMod | null>("installed_mod_for_skin", {
+          input: { modId: skin.id, slug: skin.slug }
+        });
+        if (installed) installedIds.add(skin.id);
+        else installedIds.delete(skin.id);
+      } catch {
+        // Keep browse usable when native mod detection is unavailable.
+      }
+    }));
+    installedSkinIds = installedIds;
+  }
+
+  function filteredSkins(items: Skin[]) {
+    if (!isDesktop || showAlreadyInstalled) return items;
+    return items.filter((skin) => !installedSkinIds.has(skin.id));
   }
 
   function selectContentKind(next: "mod" | "plugin") {
@@ -127,6 +161,10 @@
     character = "";
     modType = "";
     void load(true);
+  }
+
+  function updateInstalledVisibility() {
+    visibleSkins = filteredSkins(skins);
   }
 </script>
 
@@ -158,7 +196,7 @@
     <button class="h-10 rounded-md px-5 text-sm font-black {contentKind === 'mod' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => selectContentKind("mod")}>Mods</button>
     <button class="h-10 rounded-md px-5 text-sm font-black {contentKind === 'plugin' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => selectContentKind("plugin")}>Plugins</button>
   </div>
-  <FilterBar bind:query bind:character bind:modType bind:sort {characters} pluginMode={contentKind === "plugin"} onChange={() => load(true)} />
+  <FilterBar bind:query bind:character bind:modType bind:sort bind:showAlreadyInstalled {characters} canFilterInstalled={isDesktop} pluginMode={contentKind === "plugin"} onChange={() => load(true)} onInstalledVisibilityChange={updateInstalledVisibility} />
 
   {#if error}
     <div class="rounded-xl border border-destructive/40 bg-destructive/15 px-4 py-3 text-sm text-red-100 shadow-lg">
@@ -169,7 +207,7 @@
   {#if contentKind === "plugin"}
     <PluginGrid {plugins} {loading} />
   {:else}
-    <SkinGrid {skins} {loading} onVote={vote} />
+    <SkinGrid skins={visibleSkins} {loading} onVote={vote} />
   {/if}
 
   <div bind:this={sentinel} class="flex min-h-16 items-center justify-center">
@@ -177,7 +215,7 @@
       <span class="text-sm font-bold text-muted-foreground">Loading more {contentKind === "plugin" ? "plugins" : "mods"}...</span>
     {:else if hasMore}
       <Button variant="outline" on:click={loadMore}>Load more</Button>
-    {:else if contentKind === "plugin" ? plugins.length : skins.length}
+    {:else if contentKind === "plugin" ? plugins.length : visibleSkins.length}
       <span class="text-sm font-bold text-muted-foreground">All {contentKind === "plugin" ? "plugins" : "mods"} loaded.</span>
     {/if}
   </div>
