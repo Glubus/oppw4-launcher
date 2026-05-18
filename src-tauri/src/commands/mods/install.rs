@@ -170,7 +170,7 @@ fn install_hosted_plugin_dll(
         .map_err(|err| format!("Could not create plugin folder: {err}"))?;
 
     let dll_name = safe_dll_name(&input.file_name)?;
-    let target = plugin_dir.join(dll_name);
+    let target = plugin_dir.join(&dll_name);
     let already_up_to_date = target.exists()
         && fs::read(&target)
             .map(|existing| existing == bytes)
@@ -183,7 +183,7 @@ fn install_hosted_plugin_dll(
         mod_id: None,
         title: input.title.clone(),
         version: input.version.clone(),
-        source_url: None,
+        source_url: input.source_code_url.clone(),
         slug: Some(slug.clone()),
         content_kind: Some("plugin".to_string()),
         character_name: None,
@@ -193,6 +193,7 @@ fn install_hosted_plugin_dll(
         changelog: None,
         cover_data_url: None,
     };
+    write_plugin_metadata_toml(&plugin_dir, &metadata, &dll_name)?;
 
     Ok(InstallHostedModResult {
         mod_info: installed_mod_from_metadata(
@@ -205,6 +206,32 @@ fn install_hosted_plugin_dll(
         ),
         already_up_to_date,
     })
+}
+
+fn write_plugin_metadata_toml(
+    plugin_dir: &std::path::Path,
+    metadata: &LocalModMetadata,
+    dll_name: &str,
+) -> Result<(), String> {
+    let mut lines = Vec::new();
+    push_toml_string(&mut lines, "title", metadata.title.as_deref());
+    push_toml_string(&mut lines, "version", metadata.version.as_deref());
+    push_toml_string(&mut lines, "source_url", metadata.source_url.as_deref());
+    push_toml_string(&mut lines, "slug", metadata.slug.as_deref());
+    push_toml_string(&mut lines, "content_kind", metadata.content_kind.as_deref());
+    push_toml_string(&mut lines, "mod_type", metadata.mod_type.as_deref());
+    push_toml_string(&mut lines, "plugin_dll", Some(dll_name));
+    let content = format!("{}\n", lines.join("\n"));
+    fs::write(plugin_dir.join("metadata.toml"), content)
+        .map_err(|err| format!("Could not write plugin metadata: {err}"))
+}
+
+fn push_toml_string(lines: &mut Vec<String>, key: &str, value: Option<&str>) {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return;
+    };
+    let encoded = serde_json::to_string(value).unwrap_or_else(|_| "\"\"".to_string());
+    lines.push(format!("{key} = {encoded}"));
 }
 
 fn safe_dll_name(file_name: &str) -> Result<String, String> {
@@ -497,6 +524,42 @@ mod tests {
             fs::read(temp.path().join("hosted.zip")).unwrap(),
             b"PK zip bytes"
         );
+    }
+
+    #[test]
+    fn install_hosted_plugin_dll_writes_folder_metadata() {
+        let temp = tempfile::tempdir().unwrap();
+        let config = crate::config::LauncherConfig {
+            game_folder: Some(temp.path().to_string_lossy().to_string()),
+            ..crate::config::LauncherConfig::default()
+        };
+        let input = InstallHostedModRequest {
+            file_id: "file".to_string(),
+            file_name: "fx_director.dll".to_string(),
+            content_kind: Some("plugin".to_string()),
+            slug: Some("fx-director".to_string()),
+            title: Some("FX Director".to_string()),
+            version: Some("1.2.0".to_string()),
+            source_code_url: Some("https://github.com/creator/fx-director".to_string()),
+            install_as_new: false,
+        };
+
+        let result = install_hosted_plugin_dll(&config, &input, b"MZ dll bytes").unwrap();
+        let plugin_dir = temp.path().join("plugins").join("fx-director");
+        let metadata = fs::read_to_string(plugin_dir.join("metadata.toml")).unwrap();
+
+        assert_eq!(result.mod_info.name, "FX Director");
+        assert_eq!(result.mod_info.content_kind, "plugin");
+        assert!(plugin_dir.join("fx_director.dll").exists());
+        assert!(metadata.contains("title = \"FX Director\""));
+        assert!(metadata.contains("source_url = \"https://github.com/creator/fx-director\""));
+
+        let scanned = inventory::installed_mod_from_path(&plugin_dir).unwrap();
+        assert_eq!(scanned.name, "FX Director");
+        assert_eq!(scanned.version.as_deref(), Some("1.2.0"));
+        assert_eq!(scanned.source_url.as_deref(), Some("https://github.com/creator/fx-director"));
+        assert_eq!(scanned.slug.as_deref(), Some("fx-director"));
+        assert_eq!(scanned.content_kind, "plugin");
     }
 
     fn write_metadata_zip(path: &std::path::Path, metadata: &str) {

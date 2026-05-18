@@ -34,7 +34,8 @@
           contentKind: "plugin",
           slug: plugin.slug,
           title: plugin.title,
-          version: plugin.version
+          version: plugin.version,
+          sourceCodeUrl: plugin.sourceCodeUrl
         }
       });
       toastStore.push(`${plugin.title} installed.`, "success");

@@ -128,7 +128,8 @@
           contentKind: "plugin",
           slug: data.plugin.slug,
           title: data.plugin.title,
-          version: data.plugin.version
+          version: data.plugin.version,
+          sourceCodeUrl: data.plugin.sourceCodeUrl
         }
       });
     }

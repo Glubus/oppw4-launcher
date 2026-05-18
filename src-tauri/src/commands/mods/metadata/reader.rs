@@ -14,6 +14,12 @@ pub(crate) fn read_local_mod_metadata(path: &Path) -> Result<LocalModMetadata, S
     read_mod_metadata_from_archive(&mut archive)
 }
 
+pub(crate) fn read_local_folder_metadata(path: &Path) -> Result<LocalModMetadata, String> {
+    let content = fs::read_to_string(path.join("metadata.toml"))
+        .map_err(|err| format!("Could not read metadata.toml: {err}"))?;
+    Ok(parse_mod_metadata_toml(&content))
+}
+
 pub(crate) fn read_mod_metadata_from_bytes(bytes: &[u8]) -> Result<LocalModMetadata, String> {
     let reader = Cursor::new(bytes);
     let mut archive =

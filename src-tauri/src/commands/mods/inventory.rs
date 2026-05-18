@@ -110,6 +110,8 @@ fn content_kind_from_parent(path: &Path) -> Option<String> {
 fn metadata_for_installed_mod(path: &Path, kind: &str) -> LocalModMetadata {
     if kind == "zip" {
         reader::read_local_mod_metadata(path).unwrap_or_default()
+    } else if kind == "folder" {
+        reader::read_local_folder_metadata(path).unwrap_or_default()
     } else {
         LocalModMetadata::default()
     }

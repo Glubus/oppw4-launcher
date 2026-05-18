@@ -72,6 +72,7 @@ pub(crate) struct InstallHostedModRequest {
     pub(crate) slug: Option<String>,
     pub(crate) title: Option<String>,
     pub(crate) version: Option<String>,
+    pub(crate) source_code_url: Option<String>,
     #[serde(default)]
     pub(crate) install_as_new: bool,
 }
