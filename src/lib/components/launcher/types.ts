@@ -90,6 +90,7 @@ export type InstalledMod = {
   version?: string | null;
   sourceUrl?: string | null;
   slug?: string | null;
+  contentKind: "mod" | "plugin";
   characterName?: string | null;
   characterSlug?: string | null;
   modType?: string | null;

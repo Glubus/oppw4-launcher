@@ -37,7 +37,7 @@
     {/if}
   </div>
   <div class="flex flex-wrap gap-2">
-    <Button variant="outline" size="lg" disabled={!isDesktop || busy || !hasGameFolder} on:click={onCheck}>Check patcher</Button>
+    <Button variant="outline" size="lg" disabled={!isDesktop || busy || !hasGameFolder} on:click={onCheck}>Check modloader</Button>
     {#if updateLabel}
       <Button size="lg" disabled={!isDesktop || busy || !hasGameFolder || !hasLatestRelease} on:click={onInstall}>{updateLabel}</Button>
     {/if}

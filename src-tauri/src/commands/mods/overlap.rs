@@ -84,6 +84,7 @@ mod tests {
             version: None,
             source_url: None,
             slug: None,
+            content_kind: "mod".to_string(),
             character_name: character_slug.map(str::to_string),
             character_slug: character_slug.map(str::to_string),
             mod_type: mod_type.map(str::to_string),

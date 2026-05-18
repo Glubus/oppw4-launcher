@@ -25,13 +25,17 @@
   let error = "";
   let title = "";
   let version = "1.0.0";
+  let contentKind: "mod" | "plugin" = "mod";
   let modType = "complete_skin";
   let description = "";
+  let sourceCodeUrl = "";
+  let luaModuleName = "";
   let characterId = "";
   let ownershipType = "own_work";
   let externalCreatorName = "";
   let externalCreatorUrl = "";
   let tags = "";
+  let pluginDependencies = "";
   let videos = [{ label: "", url: "" }];
   let links = [{ label: "", url: "", kind: "external" }];
   let convertedImages: File[] = [];
@@ -46,8 +50,10 @@
   const maxArchiveBytes = 20 * 1024 * 1024;
   const webpQuality = 0.86;
 
-  $: if (!characterId && characters.length) characterId = String(characters[0].id);
-  $: selectedCharacter = characters.find((character) => String(character.id) === String(characterId));
+  $: if (contentKind === "mod" && !characterId && characters.length) characterId = String(characters[0].id);
+  $: selectedCharacter = contentKind === "plugin"
+    ? ({ id: "plugin", slug: "plugin", displayName: "Plugin", isDlc: false, pack: "Plugins" } satisfies Character)
+    : characters.find((character) => String(character.id) === String(characterId));
   $: isOwnWork = ownershipType === "own_work";
   $: if (isOwnWork) {
     externalCreatorName = "";
@@ -60,6 +66,7 @@
     .map((video) => ({ label: video.label.trim() || "Video preview", url: video.url.trim() }))
     .filter((video) => video.url);
   $: archiveFiles = Array.from(files ?? []);
+  $: isPluginUpload = contentKind === "plugin";
   $: titleValue = title.trim();
   $: descriptionValue = description.trim();
   $: descriptionPreview = markdownToPlainText(descriptionValue);
@@ -68,7 +75,9 @@
     .map((tag) => tag.trim())
     .filter(Boolean);
   $: archiveTooLarge = archiveFiles.find((file) => file.size > maxArchiveBytes);
-  $: hasObtainMethod = cleanLinks.length > 0 || archiveFiles.length > 0;
+  $: invalidHostedFile = archiveFiles.find((file) => isPluginUpload ? !file.name.toLowerCase().endsWith(".dll") : !file.name.toLowerCase().endsWith(".zip"));
+  $: invalidHostedFileCount = isPluginUpload && archiveFiles.length > 1;
+  $: hasObtainMethod = isPluginUpload ? archiveFiles.length === 1 : cleanLinks.length > 0 || archiveFiles.length > 0;
   $: needsExternalCreator = ownershipType !== "own_work";
   $: checklist = buildChecklist(
     session,
@@ -84,7 +93,11 @@
     descriptionValue,
     imagePreviews.length,
     cleanVideos.length,
-    tagList.length
+    tagList.length,
+    isPluginUpload,
+    sourceCodeUrl.trim(),
+    invalidHostedFile,
+    invalidHostedFileCount
   );
   $: blockerCount = checklist.filter((item) => item.tone === "red").length;
   $: suggestionCount = checklist.filter((item) => item.tone === "orange").length;
@@ -107,7 +120,11 @@
     currentDescription: string,
     currentImageCount: number,
     currentVideoCount: number,
-    currentTagCount: number
+    currentTagCount: number,
+    currentIsPluginUpload: boolean,
+    currentSourceCodeUrl: string,
+    currentInvalidHostedFile: File | undefined,
+    currentInvalidHostedFileCount: boolean
   ): ChecklistItem[] {
     const items: ChecklistItem[] = [];
 
@@ -121,9 +138,13 @@
 
     items.push(currentCharacter
       ? { tone: "green", label: "Character selected", description: currentCharacter.displayName }
-      : { tone: "red", label: "Character required", description: "Choose the character this skin belongs to." });
+      : { tone: "red", label: currentIsPluginUpload ? "Plugin target ready" : "Character required", description: currentIsPluginUpload ? "Plugins are installed globally." : "Choose the character this skin belongs to." });
 
-    if (currentArchiveTooLarge) {
+    if (currentInvalidHostedFile) {
+      items.push({ tone: "red", label: currentIsPluginUpload ? "DLL required" : "ZIP required", description: `${currentInvalidHostedFile.name} has the wrong file type.` });
+    } else if (currentInvalidHostedFileCount) {
+      items.push({ tone: "red", label: "One DLL only", description: "Plugin uploads must contain exactly one DLL." });
+    } else if (currentArchiveTooLarge) {
       items.push({ tone: "red", label: "ZIP too large", description: `${currentArchiveTooLarge.name} is larger than 20 MB.` });
     } else if (currentHasObtainMethod) {
       items.push({ tone: "green", label: "Obtain method ready", description: currentLinkCount ? "External link available." : "ZIP upload available." });
@@ -159,6 +180,12 @@
         : { tone: "orange", label: "Source URL recommended", description: "Link the original post or creator page when possible." });
     }
 
+    if (currentIsPluginUpload) {
+      items.push(currentSourceCodeUrl
+        ? { tone: "green", label: "Source code linked", description: "Required for plugin review." }
+        : { tone: "red", label: "Source code required", description: "Plugins must link their source code." });
+    }
+
     return items;
   }
 
@@ -175,13 +202,17 @@
       const form = new FormData();
       form.set("title", titleValue);
       form.set("version", version.trim() || "1.0.0");
+      form.set("contentKind", contentKind);
       form.set("modType", modType);
       form.set("description", description);
-      form.set("characterId", characterId);
+      form.set("sourceCodeUrl", sourceCodeUrl);
+      if (contentKind === "plugin" && luaModuleName.trim()) form.set("luaModuleName", luaModuleName.trim());
+      form.set("characterId", contentKind === "plugin" ? "" : characterId);
       form.set("ownershipType", ownershipType);
       form.set("externalCreatorName", externalCreatorName);
       form.set("externalCreatorUrl", externalCreatorUrl);
       form.set("tags", tags);
+      form.set("pluginDependencies", pluginDependencies);
       form.set("links", JSON.stringify(cleanLinks));
       form.set("videos", JSON.stringify(cleanVideos));
 
@@ -190,18 +221,20 @@
       }
       for (const file of archiveFiles) form.append("files", file);
 
-      const result = await apiFetch<{ skin: { title: string; status: string; slug: string } }>("/skins", {
+      if (contentKind === "plugin") form.set("docs", description);
+      const result = await apiFetch<{ skin?: { title: string; status: string; slug: string }; plugin?: { title: string; status: string; slug: string } }>(contentKind === "plugin" ? "/plugins" : "/skins", {
         method: "POST",
         body: form
       }, session?.token);
-      if (result.skin.status === "pending" || !result.skin.slug) {
+      const created = result.plugin ?? result.skin!;
+      if (created.status === "pending" || !created.slug) {
         toastStore.push("Your mod was submitted and is waiting for review.", "success");
         await goto("/");
         return;
       }
-      toastStore.push("Your mod was published.", "success");
-      message = `${result.skin.title} created as ${result.skin.status}.`;
-      await goto(`/skins/${result.skin.slug}`);
+      toastStore.push(contentKind === "plugin" ? "Your plugin was published." : "Your mod was published.", "success");
+      message = `${created.title} created as ${created.status}.`;
+      await goto(contentKind === "plugin" ? `/plugins/${created.slug}` : `/skins/${created.slug}`);
     } catch (err) {
       error = err instanceof Error ? err.message : "Upload failed";
       isSubmitting = false;
@@ -300,7 +333,8 @@
   function handleArchiveDrop(event: DragEvent) {
     event.preventDefault();
     isDraggingArchive = false;
-    const droppedFiles = Array.from(event.dataTransfer?.files ?? []).filter((file) => file.name.toLowerCase().endsWith(".zip"));
+    const expectedExtension = contentKind === "plugin" ? ".dll" : ".zip";
+    const droppedFiles = Array.from(event.dataTransfer?.files ?? []).filter((file) => file.name.toLowerCase().endsWith(expectedExtension));
     const transfer = new DataTransfer();
     for (const file of droppedFiles) transfer.items.add(file);
     files = transfer.files;
@@ -323,6 +357,12 @@
     return "bg-red-300";
   }
 
+  function selectContentKind(next: "mod" | "plugin") {
+    if (contentKind === next) return;
+    contentKind = next;
+    files = null;
+  }
+
   onDestroy(revokeImagePreviews);
 </script>
 
@@ -336,6 +376,23 @@
       </div>
       <Button href="/" variant="ghost" size="sm">Cancel</Button>
     </div>
+
+    <div class="mt-5 grid gap-2 rounded-lg border border-white/10 bg-background/45 p-1 sm:w-fit sm:grid-cols-2">
+      <button
+        class="rounded-md px-5 py-3 text-left text-sm font-black transition {contentKind === 'mod' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-white/10 hover:text-foreground'}"
+        type="button"
+        on:click={() => selectContentKind("mod")}
+      >
+        Mods
+      </button>
+      <button
+        class="rounded-md px-5 py-3 text-left text-sm font-black transition {contentKind === 'plugin' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-white/10 hover:text-foreground'}"
+        type="button"
+        on:click={() => selectContentKind("plugin")}
+      >
+        Plugins
+      </button>
+    </div>
   </Card>
 
   <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -343,7 +400,7 @@
       <Card class="p-5">
         <div class="mb-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 class="text-lg font-bold">Skin details</h2>
+            <h2 class="text-lg font-bold">{contentKind === "plugin" ? "Plugin details" : "Mod details"}</h2>
             <p class="mt-1 text-sm text-muted-foreground">Use Markdown for headings, lists, links, bold text, and code blocks.</p>
           </div>
           <span class="rounded-full border border-white/10 bg-background/55 px-3 py-1 text-xs font-bold text-muted-foreground">{description.length}/4000</span>
@@ -357,6 +414,7 @@
             Version
             <Input bind:value={version} placeholder="1.0.0" />
           </Label>
+          {#if contentKind === "mod"}
           <Label>
             Mod type
             <select class="h-10 rounded-md border border-white/12 bg-background/55 px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" bind:value={modType}>
@@ -369,8 +427,9 @@
             Character
             <CharacterCombobox {characters} bind:value={characterId} placeholder="Choose a character" valueKey="id" includeAll={false} />
           </Label>
+          {/if}
           <Label class="sm:col-span-2">
-            Description
+            {contentKind === "plugin" ? "Short description" : "Description"}
             <textarea
               class="min-h-44 w-full rounded-md border border-white/12 bg-background/55 px-3 py-2 text-sm leading-6 text-foreground shadow-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
               maxlength="4000"
@@ -378,6 +437,16 @@
               placeholder={"## What changed?\n- New outfit colors\n- Tested on current Steam build\n\n[Creator page](https://example.com)"}
             ></textarea>
           </Label>
+          {#if contentKind === "plugin"}
+            <Label>
+              Lua module name
+              <Input bind:value={luaModuleName} placeholder="fx_director" />
+            </Label>
+            <Label class="sm:col-span-2">
+              Source code URL
+              <Input bind:value={sourceCodeUrl} placeholder="https://github.com/creator/plugin" />
+            </Label>
+          {/if}
         </div>
       </Card>
 
@@ -471,6 +540,12 @@
             Tags
             <Input bind:value={tags} placeholder="wano, recolor, coat" />
           </Label>
+          {#if contentKind === "mod"}
+            <Label>
+              Plugin dependencies
+              <Input bind:value={pluginDependencies} placeholder="lua-core, costume-api" />
+            </Label>
+          {/if}
           {#if !isOwnWork}
             <Label>
               Creator name
@@ -487,7 +562,7 @@
       <Card class="p-5">
         <div class="mb-5">
           <h2 class="text-lg font-bold">Obtain</h2>
-          <p class="mt-1 text-sm text-muted-foreground">Add a public obtain link, a hosted ZIP, or both.</p>
+          <p class="mt-1 text-sm text-muted-foreground">{contentKind === "plugin" ? "Upload exactly one DLL. The launcher installs it into plugins/<plugin>/<dll>." : "Add a public obtain link, a hosted ZIP, or both."}</p>
         </div>
         <div class="grid gap-6">
           <section class="grid gap-3">
@@ -545,30 +620,30 @@
           <section class="grid gap-3">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h3 class="text-base font-black">Hosted ZIP</h3>
-                <p class="mt-1 text-xs leading-5 text-muted-foreground">Optional. Use when users should download the file directly from this hub.</p>
+                <h3 class="text-base font-black">{contentKind === "plugin" ? "Hosted DLL" : "Hosted ZIP"}</h3>
+                <p class="mt-1 text-xs leading-5 text-muted-foreground">{contentKind === "plugin" ? "Required for plugin uploads." : "Optional. Use when users should download the file directly from this hub."}</p>
               </div>
               <span class="w-fit rounded-full border border-white/12 bg-background/55 px-2.5 py-1 text-xs font-black text-muted-foreground">{archiveFiles.length} file{archiveFiles.length > 1 ? "s" : ""}</span>
             </div>
 
             <div
               role="group"
-              aria-label="ZIP file dropzone"
+              aria-label={contentKind === "plugin" ? "DLL file dropzone" : "ZIP file dropzone"}
               class="grid gap-3 rounded-md border border-dashed p-4 transition sm:grid-cols-[1fr_auto] sm:items-center {isDraggingArchive ? 'border-primary bg-primary/10' : 'border-white/14 bg-background/35'}"
               on:dragover|preventDefault={() => (isDraggingArchive = true)}
               on:dragleave={() => (isDraggingArchive = false)}
               on:drop={handleArchiveDrop}
             >
               <div>
-                <p class="text-sm font-black">Drop ZIP files here</p>
-                <p class="mt-1 text-xs leading-5 text-muted-foreground">ZIP only. 20 MB max per file.</p>
+                <p class="text-sm font-black">{contentKind === "plugin" ? "Drop a DLL here" : "Drop ZIP files here"}</p>
+                <p class="mt-1 text-xs leading-5 text-muted-foreground">{contentKind === "plugin" ? "DLL only. One file. 20 MB max." : "ZIP only. 20 MB max per file."}</p>
               </div>
               <input
                 class="w-full rounded-md border border-white/12 bg-background/55 px-3 py-2 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-foreground sm:w-72"
                 bind:files={files}
                 type="file"
-                accept=".zip,application/zip"
-                multiple
+                accept={contentKind === "plugin" ? ".dll" : ".zip,application/zip"}
+                multiple={contentKind !== "plugin"}
               />
             </div>
 

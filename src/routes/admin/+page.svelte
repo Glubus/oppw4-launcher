@@ -224,12 +224,12 @@
             <div class="min-w-0">
               <a class="block truncate text-sm font-bold text-foreground hover:text-primary hover:underline" href={`/skins/${skin.slug}`}>{skin.title}</a>
               <p class="mt-1 line-clamp-1 text-xs text-muted-foreground">
-                {skin.creditedUsername ? `@${skin.creditedUsername}` : skin.externalCreatorName || "uncredited"}
+                {skin.creatorName ?? (skin.creditedUsername ? `@${skin.creditedUsername}` : skin.externalCreatorName || "uncredited")}
                 · {skin.tags.join(", ") || "no tags"}
               </p>
             </div>
-            <span class="text-sm text-muted-foreground">{skin.character.displayName}</span>
-            <span class="text-sm text-muted-foreground">{modTypeLabel(skin.modType)}</span>
+            <span class="text-sm text-muted-foreground">{skin.character?.displayName ?? "Plugin"}</span>
+            <span class="text-sm text-muted-foreground">{skin.contentKind === "plugin" ? "Plugin" : modTypeLabel(skin.modType)}</span>
             <span class="w-fit rounded-md border border-white/12 bg-background/55 px-2 py-1 text-xs font-bold capitalize">{skin.status}</span>
             <div class="flex flex-wrap justify-start gap-2 md:justify-end">
               {#if skin.status !== "published"}

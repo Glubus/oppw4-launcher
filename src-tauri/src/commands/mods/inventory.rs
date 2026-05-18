@@ -10,26 +10,25 @@ use std::{
 };
 
 pub(crate) fn installed_mods(config: &LauncherConfig) -> Vec<InstalledMod> {
-    let Some(mods_dir) = mods_dir(config) else {
-        return Vec::new();
-    };
-    let Ok(entries) = fs::read_dir(mods_dir) else {
+    let Some(content_dirs) = content_dirs(config) else {
         return Vec::new();
     };
 
-    let mut mods = entries
-        .flatten()
+    let mut mods = content_dirs
+        .into_iter()
+        .filter_map(|dir| fs::read_dir(dir).ok())
+        .flat_map(|entries| entries.flatten())
         .filter_map(|entry| installed_mod_from_path(&entry.path()))
         .collect::<Vec<_>>();
     mods.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     mods
 }
 
-fn mods_dir(config: &LauncherConfig) -> Option<PathBuf> {
-    config
-        .game_folder
-        .as_ref()
-        .map(|game_folder| PathBuf::from(game_folder).join("mods"))
+fn content_dirs(config: &LauncherConfig) -> Option<Vec<PathBuf>> {
+    config.game_folder.as_ref().map(|game_folder| {
+        let game_folder = PathBuf::from(game_folder);
+        vec![game_folder.join("mods"), game_folder.join("plugins")]
+    })
 }
 
 pub(crate) fn installed_mod_from_path(path: &Path) -> Option<InstalledMod> {
@@ -65,6 +64,18 @@ fn installed_mod_from_parts(
 ) -> InstalledMod {
     let metadata = metadata_for_installed_mod(path, &kind);
     let mod_key = keys::mod_key_for(&display_name, &metadata);
+    let parent_kind = content_kind_from_parent(path);
+    let inferred_slug = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .map(|value| value.trim_end_matches(".zip").to_string());
+    let slug = metadata.slug.or_else(|| {
+        if parent_kind.as_deref() == Some("plugin") {
+            inferred_slug.filter(|value| !value.is_empty())
+        } else {
+            None
+        }
+    });
     InstalledMod {
         name: metadata.title.unwrap_or(display_name),
         kind,
@@ -74,7 +85,8 @@ fn installed_mod_from_parts(
         mod_id: metadata.mod_id,
         version: metadata.version,
         source_url: metadata.source_url,
-        slug: metadata.slug,
+        slug,
+        content_kind: metadata.content_kind.or(parent_kind).unwrap_or_else(|| "mod".to_string()),
         character_name: metadata.character_name,
         character_slug: metadata.character_slug,
         mod_type: metadata.mod_type,
@@ -82,6 +94,17 @@ fn installed_mod_from_parts(
         changelog: metadata.changelog,
         cover_data_url: metadata.cover_data_url,
     }
+}
+
+fn content_kind_from_parent(path: &Path) -> Option<String> {
+    path.parent()
+        .and_then(|parent| parent.file_name())
+        .and_then(|name| name.to_str())
+        .and_then(|name| match name {
+            "mods" => Some("mod".to_string()),
+            "plugins" => Some("plugin".to_string()),
+            _ => None,
+        })
 }
 
 fn metadata_for_installed_mod(path: &Path, kind: &str) -> LocalModMetadata {

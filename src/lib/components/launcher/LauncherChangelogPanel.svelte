@@ -10,7 +10,7 @@
   <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
     <div>
       <h2 class="text-xl font-black">Changelog</h2>
-      <p class="mt-2 text-sm leading-6 text-muted-foreground">Latest patcher release notes from GitHub.</p>
+      <p class="mt-2 text-sm leading-6 text-muted-foreground">Latest modloader release notes from GitHub.</p>
     </div>
     {#if latestRelease?.htmlUrl}
       <Button variant="outline" href={latestRelease.htmlUrl}>Open GitHub</Button>

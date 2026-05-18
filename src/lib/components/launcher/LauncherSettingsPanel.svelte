@@ -34,7 +34,7 @@
 
   const settingsTabs: Array<{ id: SettingsTab; label: string }> = [
     { id: "game", label: "Game" },
-    { id: "patcher", label: "Patcher" },
+    { id: "patcher", label: "Modloader" },
     { id: "launcher", label: "Launcher" },
   ];
 
@@ -59,7 +59,7 @@
 <div class="grid gap-5 p-2 pt-5">
   <div>
     <h2 class="text-xl font-black">Settings</h2>
-    <p class="mt-1 text-sm text-muted-foreground">Game paths, patcher tools, diagnostics, updates, and logs.</p>
+    <p class="mt-1 text-sm text-muted-foreground">Game paths, modloader tools, diagnostics, updates, and logs.</p>
   </div>
 
   <div class="flex gap-1 overflow-x-auto border-b border-white/10">
@@ -149,9 +149,9 @@
       <section class="grid gap-3 border-b border-white/10 pb-5">
         <div class="grid min-h-16 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
           <div class="min-w-0">
-            <h3 class="font-black">Patcher status</h3>
+            <h3 class="font-black">Modloader status</h3>
             <p class="mt-1 text-sm text-muted-foreground">
-              {needsPatcherUpdate ? "A different patcher release is available." : "Installed patcher state from the local game folder."}
+              {needsPatcherUpdate ? "A different modloader release is available." : "Installed modloader state from the local game folder."}
             </p>
           </div>
           <span class="mt-1 h-3 w-3 shrink-0 justify-self-end rounded-full {patcherStatusTone}" title={modloaderStatus} aria-label={modloaderStatus}></span>
@@ -171,12 +171,12 @@
       <section class="grid gap-3 border-b border-white/10 pb-5">
         <details>
           <summary class="flex h-10 cursor-pointer list-none items-center justify-between rounded-md border border-white/12 bg-background/55 px-3 text-sm font-black text-foreground hover:bg-white/10">
-            Advanced patcher source
+            Advanced modloader source
             <span class="text-muted-foreground">⌄</span>
           </summary>
           <div class="mt-3 grid gap-2">
             <Label>
-              Patcher GitHub repository
+              Modloader GitHub repository
               <Input bind:value={config.modloaderRepo} on:change={onRepositoryChange} placeholder="owner/repository" />
             </Label>
             <p class="text-xs leading-5 text-muted-foreground">Expected format: owner/repository.</p>

@@ -92,30 +92,30 @@ fn patcher_health_for_status(status: &str) -> HealthCheckItem {
     match status {
         "Installed" => health_item(
             "ok",
-            "Patcher",
+            "Modloader",
             "dinput8.dll is installed and matches the tracked hash.",
         ),
         "Update available" => health_item(
             "warn",
-            "Patcher",
-            "A newer patcher asset is available on GitHub.",
+            "Modloader",
+            "A newer modloader asset is available on GitHub.",
         ),
         "Modified dinput8.dll" => health_item(
             "warn",
-            "Patcher",
+            "Modloader",
             "The local dinput8.dll does not match the tracked install hash.",
         ),
         "Detected unmanaged dinput8.dll" => health_item(
             "warn",
-            "Patcher",
+            "Modloader",
             "A dinput8.dll exists, but it was not installed by this launcher.",
         ),
         "Missing installed dinput8.dll" => health_item(
             "error",
-            "Patcher",
+            "Modloader",
             "The launcher tracks an install, but dinput8.dll is missing.",
         ),
-        status => health_item("error", "Patcher", status),
+        status => health_item("error", "Modloader", status),
     }
 }
 
@@ -251,6 +251,7 @@ mod tests {
             mod_id: None,
             slug: None,
             source_url: None,
+            content_kind: "mod".to_string(),
             mod_key: format!("local:{name}.zip"),
             character_name: None,
             character_slug: None,

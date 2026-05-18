@@ -120,11 +120,11 @@
 
   function patcherActionLabel(status: string, hasTrackedInstall: boolean, needsUpdate: boolean) {
     const normalized = status.toLowerCase();
-    if (needsUpdate) return hasTrackedInstall ? "Update patcher" : "Install patcher";
+    if (needsUpdate) return hasTrackedInstall ? "Update modloader" : "Install modloader";
     if (normalized === "installed") return "";
-    if (normalized.includes("missing installed") || normalized.includes("modified")) return "Repair patcher";
-    if (normalized === "missing" || normalized.includes("unmanaged")) return "Install patcher";
-    return hasTrackedInstall ? "Repair patcher" : "Install patcher";
+    if (normalized.includes("missing installed") || normalized.includes("modified")) return "Repair modloader";
+    if (normalized === "missing" || normalized.includes("unmanaged")) return "Install modloader";
+    return hasTrackedInstall ? "Repair modloader" : "Install modloader";
   }
 
   async function startup() {

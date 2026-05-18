@@ -52,10 +52,18 @@ fn parse_mod_metadata_toml(content: &str) -> LocalModMetadata {
         version: toml_value(content, "version"),
         source_url: toml_value(content, "source_url"),
         slug: toml_value(content, "slug"),
+        content_kind: toml_value(content, "content_kind"),
         character_name: toml_value(content, "character_name"),
         character_slug: toml_value(content, "character_slug"),
         mod_type: toml_value(content, "mod_type"),
-        dependencies: toml_array(content, "dependencies"),
+        dependencies: {
+            let plugin_dependencies = toml_array(content, "plugin_dependencies");
+            if plugin_dependencies.is_empty() {
+                toml_array(content, "dependencies")
+            } else {
+                plugin_dependencies
+            }
+        },
         changelog: toml_value(content, "changelog"),
         cover_data_url: None,
     }
@@ -196,9 +204,16 @@ mod tests {
 
     #[test]
     fn parses_dependency_arrays_and_drops_empty_entries() {
-        let metadata = parse_mod_metadata_toml("dependencies = [\"base\", \"\", \"patch\"]");
+        let metadata = parse_mod_metadata_toml("plugin_dependencies = [\"base\", \"\", \"patch\"]");
 
         assert_eq!(metadata.dependencies, vec!["base", "patch"]);
+    }
+
+    #[test]
+    fn falls_back_to_legacy_dependency_arrays() {
+        let metadata = parse_mod_metadata_toml("dependencies = [\"base\"]");
+
+        assert_eq!(metadata.dependencies, vec!["base"]);
     }
 
     #[test]

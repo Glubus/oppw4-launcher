@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { API_BASE, mediaUrl, modTypeLabel, type Skin } from "$lib/api";
+  import { API_BASE, apiFetch, mediaUrl, modTypeLabel, type Plugin, type Skin } from "$lib/api";
   import ChevronIcon from "$lib/components/atoms/ChevronIcon.svelte";
   import LinkKindIcon from "$lib/components/atoms/LinkKindIcon.svelte";
   import StatPill from "$lib/components/atoms/StatPill.svelte";
@@ -30,7 +30,9 @@
 
   $: isDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   $: upToDate = Boolean(installedMod && installedMod.version === skin.version);
-  $: initials = skin.character.displayName
+  $: contentLabel = skin.contentKind === "plugin" ? "Plugin" : modTypeLabel(skin.modType);
+  $: characterLabel = skin.character?.displayName ?? "Lua library";
+  $: initials = characterLabel
     .split(/\s+/)
     .slice(0, 2)
     .map((part) => part[0])
@@ -38,12 +40,8 @@
     .toUpperCase();
   $: images = skin.images ?? [];
   $: preview = images[activeImage];
-  $: creatorName = skin.creditedUsername ?? skin.externalCreatorName ?? "uncredited";
-  $: creatorHref = skin.creditedUsername
-    ? `/creators/${encodeURIComponent(skin.creditedUsername)}`
-    : skin.externalCreatorSlug
-      ? `/creators/${encodeURIComponent(skin.externalCreatorSlug)}`
-      : null;
+  $: creatorName = skin.creatorName ?? skin.creditedUsername ?? skin.externalCreatorName ?? "uncredited";
+  $: creatorHref = skin.creatorSlug ? `/creators/${encodeURIComponent(skin.creatorSlug)}` : null;
   $: obtainHref = skin.links?.[0]
     ? `${API_BASE}/links/${skin.links[0].id}/redirect`
     : skin.files?.[0]
@@ -94,7 +92,8 @@
     showFileMenu = false;
     installing = true;
     try {
-      const result = await invoke<InstallHostedModResult>("install_hosted_mod", { input: { fileId: file.id, fileName: file.fileName } });
+      await installPluginDependencies();
+      const result = await invoke<InstallHostedModResult>("install_hosted_mod", { input: { fileId: file.id, fileName: file.fileName, contentKind: "mod", slug: skin.slug, title: skin.title, version: skin.version } });
       installedMod = result.modInfo;
       toastStore.push(result.alreadyUpToDate ? "Already up to date." : `${skin.title} installed.`, "success");
     } catch (err) {
@@ -111,8 +110,9 @@
     let installed = 0;
     let alreadyCurrent = 0;
     try {
+      await installPluginDependencies();
       for (const file of hostedFiles) {
-        const result = await invoke<InstallHostedModResult>("install_hosted_mod", { input: { fileId: file.id, fileName: file.fileName, installAsNew: true } });
+        const result = await invoke<InstallHostedModResult>("install_hosted_mod", { input: { fileId: file.id, fileName: file.fileName, contentKind: "mod", slug: skin.slug, title: skin.title, version: skin.version, installAsNew: true } });
         installedMod = result.modInfo;
         if (result.alreadyUpToDate) alreadyCurrent += 1;
         else installed += 1;
@@ -122,6 +122,25 @@
       toastStore.push(err instanceof Error ? err.message : typeof err === "string" ? err : "Could not install all files.", "error");
     } finally {
       installing = false;
+    }
+  }
+
+  async function installPluginDependencies() {
+    if (!skin.pluginDependencies.length) return;
+    for (const dependency of skin.pluginDependencies) {
+      const data = await apiFetch<{ plugin: Plugin }>(`/plugins/${encodeURIComponent(dependency)}`);
+      const pluginFile = data.plugin.files?.[0];
+      if (!pluginFile) throw new Error(`${data.plugin.title} has no hosted DLL.`);
+      await invoke("install_hosted_mod", {
+        input: {
+          fileId: pluginFile.id,
+          fileName: pluginFile.fileName,
+          contentKind: "plugin",
+          slug: data.plugin.slug,
+          title: data.plugin.title,
+          version: data.plugin.version
+        }
+      });
     }
   }
 </script>
@@ -146,8 +165,8 @@
     ></a>
 
     <div class="absolute left-3 top-3 z-20 flex flex-wrap gap-2">
-      <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">{skin.character.isDlc ? "DLC" : "Base"}</span>
-      <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">{modTypeLabel(skin.modType)}</span>
+      <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">{skin.character ? (skin.character.isDlc ? "DLC" : "Base") : "Plugin"}</span>
+      <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">{contentLabel}</span>
       {#if skin.isPinned}
         <span class="rounded-full border border-white/25 bg-black/45 px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-wide text-white backdrop-blur">Pinned</span>
       {/if}
@@ -173,7 +192,7 @@
 
   <div class="grid gap-4 p-4">
     <div class="min-w-0">
-      <p class="truncate text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">{skin.character.displayName} / {modTypeLabel(skin.modType)}</p>
+      <p class="truncate text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">{characterLabel} / {contentLabel}</p>
       <a class="mt-1 block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={`/skins/${skin.slug}`}>
         <h2 class="line-clamp-2 text-2xl font-black leading-tight text-foreground">{skin.title}</h2>
       </a>
@@ -184,7 +203,7 @@
 
     <div class="flex flex-wrap gap-2 text-xs">
       <StatPill label="views" value={skin.viewedCount} tone="neutral" />
-      <StatPill label="redirects" value={skin.redirectionCount} tone="neutral" />
+      <StatPill label="downloads" value={skin.redirectionCount} tone="neutral" />
     </div>
 
     <div class="flex items-center justify-between gap-3 border-t border-white/10 pt-4 text-sm">

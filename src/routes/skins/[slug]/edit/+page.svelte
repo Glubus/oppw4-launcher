@@ -18,6 +18,7 @@
   $: canEdit = Boolean(
     current && skin && (
       skin.submittedByUserId === current.user.id ||
+      skin.creatorUserId === current.user.id ||
       skin.creditedUserId === current.user.id ||
       current.user.roles.some((role) => role === "ROLE_ADMIN" || role === "ROLE_MODERATOR")
     )
@@ -25,6 +26,7 @@
 
   function canEditSkin(currentSession: Session, currentSkin: Skin) {
     return currentSkin.submittedByUserId === currentSession.user.id ||
+      currentSkin.creatorUserId === currentSession.user.id ||
       currentSkin.creditedUserId === currentSession.user.id ||
       currentSession.user.roles.some((role) => role === "ROLE_ADMIN" || role === "ROLE_MODERATOR");
   }

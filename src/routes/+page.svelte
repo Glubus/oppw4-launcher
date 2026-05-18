@@ -1,11 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { get } from "svelte/store";
-  import { apiFetch, type Character, type Skin } from "$lib/api";
+  import { apiFetch, type Character, type Plugin, type Skin } from "$lib/api";
   import { session } from "$lib/stores/session";
   import AppHeader from "$lib/components/organisms/AppHeader.svelte";
   import FilterBar from "$lib/components/molecules/FilterBar.svelte";
   import SkinGrid from "$lib/components/organisms/SkinGrid.svelte";
+  import PluginGrid from "$lib/components/organisms/PluginGrid.svelte";
   import Button from "$lib/components/ui/Button.svelte";
   import { toastStore } from "$lib/stores/toasts";
   import { invoke } from "@tauri-apps/api/core";
@@ -22,6 +23,11 @@
       hasMore: boolean;
     };
   };
+  type PluginListResponse = {
+    plugins: Plugin[];
+    totalCount: number;
+    pagination: SkinListResponse["pagination"];
+  };
 
   type InstalledMod = {
     path: string;
@@ -29,8 +35,10 @@
 
   let skins: Skin[] = [];
   let visibleSkins: Skin[] = [];
+  let plugins: Plugin[] = [];
   let characters: Character[] = [];
   let query = "";
+  let contentKind: "mod" | "plugin" = "mod";
   let character = "";
   let modType = "";
   let sort = "recent";
@@ -78,18 +86,26 @@
       const nextPage = reset ? 1 : page + 1;
       const params = new URLSearchParams();
       if (query) params.set("q", query);
-      if (character) params.set("character", character);
-      if (modType) params.set("modType", modType);
       params.set("sort", sort);
       params.set("limit", `${PAGE_SIZE}`);
       params.set("page", `${nextPage}`);
-      const skinData = await apiFetch<SkinListResponse>(`/skins?${params}`);
-      await refreshInstalledSkinState(skinData.skins);
-      skins = reset ? skinData.skins : [...skins, ...skinData.skins];
-      visibleSkins = filteredSkins(skins);
-      page = skinData.pagination.page;
-      total = skinData.totalCount;
-      hasMore = skinData.pagination.hasMore;
+      if (contentKind === "plugin") {
+        const pluginData = await apiFetch<PluginListResponse>(`/plugins?${params}`);
+        plugins = reset ? pluginData.plugins : [...plugins, ...pluginData.plugins];
+        page = pluginData.pagination.page;
+        total = pluginData.totalCount;
+        hasMore = pluginData.pagination.hasMore;
+      } else {
+        if (character) params.set("character", character);
+        if (modType) params.set("modType", modType);
+        const skinData = await apiFetch<SkinListResponse>(`/skins?${params}`);
+        await refreshInstalledSkinState(skinData.skins);
+        skins = reset ? skinData.skins : [...skins, ...skinData.skins];
+        visibleSkins = filteredSkins(skins);
+        page = skinData.pagination.page;
+        total = skinData.totalCount;
+        hasMore = skinData.pagination.hasMore;
+      }
     } catch (err) {
       error = err instanceof Error ? err.message : "Could not load skins";
     } finally {
@@ -145,6 +161,13 @@
     void load(true);
   }
 
+  function selectContentKind(next: "mod" | "plugin") {
+    contentKind = next;
+    character = "";
+    modType = "";
+    void load(true);
+  }
+
   function updateInstalledVisibility() {
     visibleSkins = filteredSkins(skins);
   }
@@ -159,13 +182,13 @@
 <main class="mx-auto grid max-w-7xl gap-5 px-4 py-6">
   <section class="flex flex-col gap-4 rounded-lg border border-white/10 bg-card/86 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-md md:flex-row md:items-end md:justify-between">
     <div>
-      <p class="text-xs font-black uppercase tracking-[0.22em] text-primary/90">Skin index</p>
-      <h1 class="mt-1 text-4xl font-black tracking-tight">Community skins</h1>
-      <p class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Search by character, creator, tag, popularity, views, or external obtain redirects.</p>
+      <p class="text-xs font-black uppercase tracking-[0.22em] text-primary/90">{contentKind === "plugin" ? "Plugin index" : "Mod index"}</p>
+      <h1 class="mt-1 text-4xl font-black tracking-tight">{contentKind === "plugin" ? "Community plugins" : "Community mods"}</h1>
+      <p class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Search by creator, tag, popularity, views, or external obtain redirects.</p>
     </div>
     <div class="grid grid-cols-2 overflow-hidden rounded-lg border border-white/10 bg-background/45">
       <div class="border-r border-white/10 px-5 py-3">
-        <div class="text-xs text-muted-foreground">Skins</div>
+        <div class="text-xs text-muted-foreground">{contentKind === "plugin" ? "Plugins" : "Mods"}</div>
         <div class="text-2xl font-bold">{total}</div>
       </div>
       <div class="px-5 py-3">
@@ -174,7 +197,11 @@
       </div>
     </div>
   </section>
-  <FilterBar bind:query bind:character bind:modType bind:sort bind:showAlreadyInstalled {characters} canFilterInstalled={isDesktop} onChange={updateFilters} onInstalledVisibilityChange={updateInstalledVisibility} />
+  <div class="grid grid-cols-2 overflow-hidden rounded-lg border border-white/10 bg-card/86 p-1 shadow-[0_18px_50px_rgba(0,0,0,0.18)] backdrop-blur-md sm:w-fit">
+    <button class="h-10 rounded-md px-5 text-sm font-black {contentKind === 'mod' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => selectContentKind("mod")}>Mods</button>
+    <button class="h-10 rounded-md px-5 text-sm font-black {contentKind === 'plugin' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-white/8'}" type="button" on:click={() => selectContentKind("plugin")}>Plugins</button>
+  </div>
+  <FilterBar bind:query bind:contentKind bind:character bind:modType bind:sort bind:showAlreadyInstalled {characters} canFilterInstalled={isDesktop} onChange={updateFilters} onContentKindChange={() => selectContentKind(contentKind)} onInstalledVisibilityChange={updateInstalledVisibility} />
 
   {#if error}
     <div class="rounded-xl border border-destructive/40 bg-destructive/15 px-4 py-3 text-sm text-red-100 shadow-lg">
@@ -182,7 +209,11 @@
     </div>
   {/if}
 
-  <SkinGrid skins={visibleSkins} {loading} onVote={vote} />
+  {#if contentKind === "plugin"}
+    <PluginGrid {plugins} {loading} />
+  {:else}
+    <SkinGrid skins={visibleSkins} {loading} onVote={vote} />
+  {/if}
 
   <div bind:this={sentinel} class="flex min-h-16 items-center justify-center">
     {#if loadingMore}

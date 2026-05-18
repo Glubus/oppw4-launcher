@@ -107,7 +107,7 @@ fn diagnostics_summary(
     let error_count = health.iter().filter(|item| item.level == "error").count();
     let warning_count = health.iter().filter(|item| item.level == "warn").count();
     format!(
-    "OPPW4 Launcher diagnostics\nGenerated: {}\nLauncher version: {}\nGame folder: {}\nPatcher release: {}\nInstalled mods: {}\nHealth: {error_count} error(s), {warning_count} warning(s)\n",
+    "OPPW4 Launcher diagnostics\nGenerated: {}\nLauncher version: {}\nGame folder: {}\nModloader release: {}\nInstalled mods: {}\nHealth: {error_count} error(s), {warning_count} warning(s)\n",
     now_label(),
     env!("CARGO_PKG_VERSION"),
     config.game_folder.as_deref().unwrap_or("Not selected"),
@@ -163,6 +163,7 @@ mod tests {
             version: Some("1.0.0".to_string()),
             source_url: None,
             slug: None,
+            content_kind: "mod".to_string(),
             character_name: Some("Law".to_string()),
             character_slug: Some("law".to_string()),
             mod_type: Some("skin".to_string()),
@@ -198,7 +199,7 @@ mod tests {
             .read_to_string(&mut health_json)
             .unwrap();
 
-        assert!(summary.contains("Patcher release: v1.2.3"));
+        assert!(summary.contains("Modloader release: v1.2.3"));
         assert!(summary.contains("Installed mods: 1"));
         assert!(summary.contains("Health: 0 error(s), 1 warning(s)"));
         assert!(installed_mods.contains("Law Outfit"));

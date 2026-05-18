@@ -14,16 +14,17 @@ use std::{fs, path::PathBuf};
 #[allow(clippy::needless_pass_by_value)]
 pub(crate) fn import_external_zip(input: ImportExternalZipRequest) -> Result<InstalledMod, String> {
     let config = read_config()?;
-    let mods_dir = ensure_mods_dir(&config)?;
-    import_external_zip_to_dir(&mods_dir, &input.path)
+    import_external_zip_to_game(&config, &input.path)
 }
 
-fn import_external_zip_to_dir(
-    mods_dir: &std::path::Path,
+fn import_external_zip_to_game(
+    config: &crate::config::LauncherConfig,
     selected: &str,
 ) -> Result<InstalledMod, String> {
     let selected = valid_external_zip_path(selected)?;
-    let target = copy_external_zip_to_mods_dir(mods_dir, &selected)?;
+    let metadata = reader::read_local_mod_metadata(&selected).unwrap_or_default();
+    let target_dir = ensure_content_dir(config, metadata.content_kind.as_deref())?;
+    let target = copy_external_zip_to_content_dir(&target_dir, &selected)?;
     scan_imported_zip(&target)
 }
 
@@ -42,15 +43,15 @@ fn valid_external_zip_path(path: &str) -> Result<PathBuf, String> {
     Ok(selected)
 }
 
-fn copy_external_zip_to_mods_dir(
-    mods_dir: &std::path::Path,
+fn copy_external_zip_to_content_dir(
+    content_dir: &std::path::Path,
     selected: &std::path::Path,
 ) -> Result<PathBuf, String> {
     let file_name = selected
         .file_name()
         .and_then(|value| value.to_str())
         .ok_or_else(|| "Invalid ZIP file name.".to_string())?;
-    let target = paths::available_mod_path(mods_dir, file_name);
+    let target = paths::available_mod_path(content_dir, file_name);
     fs::copy(selected, &target).map_err(|err| format!("Could not import ZIP: {err}"))?;
     Ok(target)
 }
@@ -66,10 +67,16 @@ pub(crate) fn install_hosted_mod(
     input: InstallHostedModRequest,
 ) -> Result<InstallHostedModResult, String> {
     let config = read_config()?;
-    let mods_dir = ensure_mods_dir(&config)?;
-    let bytes = download_hosted_mod_zip(&input.file_id)?;
+    let bytes = download_hosted_file(&input.file_id)?;
+
+    if input.content_kind.as_deref() == Some("plugin") {
+        validate_downloaded_dll(&bytes)?;
+        return install_hosted_plugin_dll(&config, &input, &bytes);
+    }
+
     validate_downloaded_zip(&bytes)?;
     let metadata = reader::read_mod_metadata_from_bytes(&bytes).unwrap_or_default();
+    let content_dir = ensure_content_dir(&config, metadata.content_kind.as_deref())?;
 
     if !input.install_as_new {
         if let Some(result) =
@@ -79,7 +86,7 @@ pub(crate) fn install_hosted_mod(
         }
     }
 
-    install_new_hosted_mod(&mods_dir, &input.file_name, &bytes, &metadata)
+    install_new_hosted_mod(&content_dir, &input.file_name, &bytes, &metadata)
 }
 
 #[tauri::command]
@@ -102,21 +109,26 @@ pub(crate) fn installed_mod_for_skin(
         }))
 }
 
-fn ensure_mods_dir(config: &crate::config::LauncherConfig) -> Result<PathBuf, String> {
+fn ensure_content_dir(
+    config: &crate::config::LauncherConfig,
+    content_kind: Option<&str>,
+) -> Result<PathBuf, String> {
     let game_folder = config
         .game_folder
         .clone()
         .ok_or_else(|| "Set a game folder first.".to_string())?;
-    let mods_dir = PathBuf::from(game_folder).join("mods");
-    fs::create_dir_all(&mods_dir).map_err(|err| format!("Could not create mods folder: {err}"))?;
-    Ok(mods_dir)
+    let folder_name = if content_kind == Some("plugin") { "plugins" } else { "mods" };
+    let content_dir = PathBuf::from(game_folder).join(folder_name);
+    fs::create_dir_all(&content_dir)
+        .map_err(|err| format!("Could not create {folder_name} folder: {err}"))?;
+    Ok(content_dir)
 }
 
-fn download_hosted_mod_zip(file_id: &str) -> Result<Vec<u8>, String> {
+fn download_hosted_file(file_id: &str) -> Result<Vec<u8>, String> {
     let url = format!("{API_BASE}/files/{file_id}/download");
     reqwest::blocking::Client::new()
         .get(url)
-        .header("accept", "application/zip")
+        .header("accept", "application/octet-stream,application/zip")
         .header("user-agent", "oppw4-launcher")
         .send()
         .map_err(|err| format!("Could not download mod: {err}"))?
@@ -124,7 +136,7 @@ fn download_hosted_mod_zip(file_id: &str) -> Result<Vec<u8>, String> {
         .map_err(|err| format!("Mod download failed: {err}"))?
         .bytes()
         .map(|bytes| bytes.to_vec())
-        .map_err(|err| format!("Could not read mod download: {err}"))
+        .map_err(|err| format!("Could not read download: {err}"))
 }
 
 fn validate_downloaded_zip(bytes: &[u8]) -> Result<(), String> {
@@ -132,6 +144,94 @@ fn validate_downloaded_zip(bytes: &[u8]) -> Result<(), String> {
         .starts_with(b"PK")
         .then_some(())
         .ok_or_else(|| "Downloaded file is not a ZIP archive.".to_string())
+}
+
+fn validate_downloaded_dll(bytes: &[u8]) -> Result<(), String> {
+    bytes
+        .starts_with(b"MZ")
+        .then_some(())
+        .ok_or_else(|| "Downloaded plugin is not a DLL.".to_string())
+}
+
+fn install_hosted_plugin_dll(
+    config: &crate::config::LauncherConfig,
+    input: &InstallHostedModRequest,
+    bytes: &[u8],
+) -> Result<InstallHostedModResult, String> {
+    let plugins_dir = ensure_content_dir(config, Some("plugin"))?;
+    let slug = input
+        .slug
+        .as_deref()
+        .map(safe_folder_name)
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| safe_folder_name(&input.file_name.trim_end_matches(".dll")));
+    let plugin_dir = plugins_dir.join(&slug);
+    fs::create_dir_all(&plugin_dir)
+        .map_err(|err| format!("Could not create plugin folder: {err}"))?;
+
+    let dll_name = safe_dll_name(&input.file_name)?;
+    let target = plugin_dir.join(dll_name);
+    let already_up_to_date = target.exists()
+        && fs::read(&target)
+            .map(|existing| existing == bytes)
+            .unwrap_or(false);
+    if !already_up_to_date {
+        fs::write(&target, bytes).map_err(|err| format!("Could not write plugin DLL: {err}"))?;
+    }
+
+    let metadata = LocalModMetadata {
+        mod_id: None,
+        title: input.title.clone(),
+        version: input.version.clone(),
+        source_url: None,
+        slug: Some(slug.clone()),
+        content_kind: Some("plugin".to_string()),
+        character_name: None,
+        character_slug: None,
+        mod_type: Some("plugin".to_string()),
+        dependencies: Vec::new(),
+        changelog: None,
+        cover_data_url: None,
+    };
+
+    Ok(InstallHostedModResult {
+        mod_info: installed_mod_from_metadata(
+            plugin_dir.to_string_lossy().to_string(),
+            "folder".to_string(),
+            true,
+            input.title.clone().unwrap_or(slug.clone()),
+            format!("plugin:{slug}"),
+            &metadata,
+        ),
+        already_up_to_date,
+    })
+}
+
+fn safe_dll_name(file_name: &str) -> Result<String, String> {
+    let path = PathBuf::from(file_name);
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "Invalid DLL file name.".to_string())?;
+    if !name.to_lowercase().ends_with(".dll") {
+        return Err("Plugin file must be a DLL.".to_string());
+    }
+    Ok(name.to_string())
+}
+
+fn safe_folder_name(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                ch.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string()
 }
 
 fn existing_hosted_mod_result(
@@ -227,6 +327,7 @@ fn installed_mod_from_metadata(
         version: metadata.version.clone(),
         source_url: metadata.source_url.clone(),
         slug: metadata.slug.clone(),
+        content_kind: metadata.content_kind.clone().unwrap_or_else(|| "mod".to_string()),
         character_name: metadata.character_name.clone(),
         character_slug: metadata.character_slug.clone(),
         mod_type: metadata.mod_type.clone(),
@@ -247,6 +348,7 @@ fn clone_installed_mod(mod_info: &InstalledMod) -> InstalledMod {
         version: mod_info.version.clone(),
         source_url: mod_info.source_url.clone(),
         slug: mod_info.slug.clone(),
+        content_kind: mod_info.content_kind.clone(),
         character_name: mod_info.character_name.clone(),
         character_slug: mod_info.character_slug.clone(),
         mod_type: mod_info.mod_type.clone(),
@@ -306,12 +408,32 @@ mod tests {
         let source = temp.path().join("law.zip");
         write_metadata_zip(&source, "title = \"Imported Law\"\nmod_id = \"law\"\n");
 
-        let imported = import_external_zip_to_dir(&mods_dir, &source.to_string_lossy()).unwrap();
+        let config = crate::config::LauncherConfig {
+            game_folder: Some(temp.path().to_string_lossy().to_string()),
+            ..crate::config::LauncherConfig::default()
+        };
+        let imported = import_external_zip_to_game(&config, &source.to_string_lossy()).unwrap();
 
         assert_eq!(imported.name, "Imported Law");
         assert_eq!(imported.mod_key, "id:law");
         assert!(imported.path.ends_with("law-1.zip"));
         assert!(mods_dir.join("law-1.zip").exists());
+    }
+
+    #[test]
+    fn import_external_zip_installs_plugins_to_plugins_folder() {
+        let temp = tempfile::tempdir().unwrap();
+        let source = temp.path().join("lua-core.zip");
+        write_metadata_zip(&source, "title = \"Lua Core\"\ncontent_kind = \"plugin\"\n");
+        let config = crate::config::LauncherConfig {
+            game_folder: Some(temp.path().to_string_lossy().to_string()),
+            ..crate::config::LauncherConfig::default()
+        };
+
+        let imported = import_external_zip_to_game(&config, &source.to_string_lossy()).unwrap();
+
+        assert_eq!(imported.content_kind, "plugin");
+        assert!(temp.path().join("plugins").join("lua-core.zip").exists());
     }
 
     #[test]
@@ -330,6 +452,7 @@ mod tests {
             version: Some("1.0.0".to_string()),
             source_url: Some("https://example.test".to_string()),
             slug: Some("slug".to_string()),
+            content_kind: Some("mod".to_string()),
             character_name: Some("Law".to_string()),
             character_slug: Some("law".to_string()),
             mod_type: Some("skin".to_string()),
@@ -350,6 +473,7 @@ mod tests {
 
         assert_eq!(mod_info.name, "Law");
         assert_eq!(mod_info.mod_id.as_deref(), Some("id"));
+        assert_eq!(mod_info.content_kind, "mod");
         assert_eq!(mod_info.dependencies, vec!["base"]);
         assert_eq!(mod_info.cover_data_url, metadata.cover_data_url);
     }

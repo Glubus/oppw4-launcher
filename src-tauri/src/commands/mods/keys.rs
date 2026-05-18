@@ -179,6 +179,7 @@ mod tests {
             version: Some(version.to_string()),
             source_url: None,
             slug: None,
+            content_kind: "mod".to_string(),
             character_name: None,
             character_slug: None,
             mod_type: None,

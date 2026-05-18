@@ -18,7 +18,7 @@
   <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
     <div>
       <p class="font-black">Health check</p>
-      <p class="mt-1 text-sm text-muted-foreground">Checks patcher state, mods folder, metadata, dependencies and latest loader log.</p>
+      <p class="mt-1 text-sm text-muted-foreground">Checks modloader state, mods folder, metadata, dependencies and latest loader log.</p>
     </div>
     <div class="flex flex-wrap gap-2">
       <Button variant="outline" disabled={busy} on:click={onRun}>Run check</Button>

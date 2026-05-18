@@ -3,7 +3,7 @@
   import { page } from "$app/stores";
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
-  import { API_BASE, apiFetch, mediaUrl, modTypeLabel, type Session, type Skin } from "$lib/api";
+  import { API_BASE, apiFetch, mediaUrl, modTypeLabel, type Plugin, type Session, type Skin } from "$lib/api";
   import { session } from "$lib/stores/session";
   import LinkKindIcon from "$lib/components/atoms/LinkKindIcon.svelte";
   import TagChip from "$lib/components/atoms/TagChip.svelte";
@@ -36,12 +36,8 @@
 
   session.subscribe((value) => (current = value));
 
-  $: creatorName = skin?.creditedUsername ?? skin?.externalCreatorName ?? "uncredited";
-  $: creatorHref = skin?.creditedUsername
-    ? `/creators/${encodeURIComponent(skin.creditedUsername)}`
-    : skin?.externalCreatorSlug
-      ? `/creators/${encodeURIComponent(skin.externalCreatorSlug)}`
-      : null;
+  $: creatorName = skin?.creatorName ?? skin?.creditedUsername ?? skin?.externalCreatorName ?? "uncredited";
+  $: creatorHref = skin?.creatorSlug ? `/creators/${encodeURIComponent(skin.creatorSlug)}` : null;
   $: images = skin?.images ?? [];
   $: videos = skin?.videos ?? [];
   $: mediaItems = [
@@ -53,6 +49,7 @@
   $: canEdit = Boolean(
     current && skin && (
       skin.submittedByUserId === current.user.id ||
+      skin.creatorUserId === current.user.id ||
       skin.creditedUserId === current.user.id ||
       current.user.roles.some((role) => role === "ROLE_ADMIN" || role === "ROLE_MODERATOR")
     )
@@ -107,13 +104,33 @@
     installMessage = "";
     error = "";
     try {
-      const result = await invoke<InstallHostedModResult>("install_hosted_mod", { input: { fileId: file.id, fileName: file.fileName } });
+      await installPluginDependencies();
+      const result = await invoke<InstallHostedModResult>("install_hosted_mod", { input: { fileId: file.id, fileName: file.fileName, contentKind: "mod", slug: skin.slug, title: skin.title, version: skin.version } });
       installedMod = result.modInfo;
       installMessage = result.alreadyUpToDate ? "Already up to date." : "Installed into your mods folder.";
     } catch (err) {
       error = err instanceof Error ? err.message : typeof err === "string" ? err : "Could not install mod";
     } finally {
       installBusy = false;
+    }
+  }
+
+  async function installPluginDependencies() {
+    if (!skin?.pluginDependencies.length) return;
+    for (const dependency of skin.pluginDependencies) {
+      const data = await apiFetch<{ plugin: Plugin }>(`/plugins/${encodeURIComponent(dependency)}`);
+      const pluginFile = data.plugin.files?.[0];
+      if (!pluginFile) throw new Error(`${data.plugin.title} has no hosted DLL.`);
+      await invoke("install_hosted_mod", {
+        input: {
+          fileId: pluginFile.id,
+          fileName: pluginFile.fileName,
+          contentKind: "plugin",
+          slug: data.plugin.slug,
+          title: data.plugin.title,
+          version: data.plugin.version
+        }
+      });
     }
   }
 
@@ -160,7 +177,7 @@
       <div class="grid gap-5">
         <Card class="overflow-hidden bg-card/70">
           {#if activeItem}
-            <div class="relative aspect-video overflow-hidden bg-black">
+            <div class="relative aspect-video overflow-hidden bg-muted">
               {#if activeItem.type === "video"}
                 {#if activeEmbed}
                   <iframe
@@ -176,8 +193,8 @@
                   </div>
                 {/if}
               {:else}
-                <img class="absolute inset-0 h-full w-full scale-110 object-cover opacity-30 blur-2xl" src={mediaUrl(activeItem.image.url)} alt="" aria-hidden="true" />
-                <div class="absolute inset-0 bg-black/52"></div>
+                <img class="absolute inset-0 h-full w-full scale-125 object-cover opacity-55 blur-xl [image-rendering:pixelated]" src={mediaUrl(activeItem.image.url)} alt="" aria-hidden="true" />
+                <div class="absolute inset-0 bg-background/22"></div>
                 <img class="relative z-10 h-full w-full object-contain" src={mediaUrl(activeItem.image.url)} alt={activeItem.image.alt || skin.title} />
               {/if}
             </div>
@@ -195,16 +212,16 @@
               </div>
             {/if}
           {:else}
-            <div class="grid aspect-video place-items-center bg-muted text-5xl font-black text-muted-foreground">{skin.character.displayName.slice(0, 2).toUpperCase()}</div>
+            <div class="grid aspect-video place-items-center bg-muted text-5xl font-black text-muted-foreground">{(skin.character?.displayName ?? "Plugin").slice(0, 2).toUpperCase()}</div>
           {/if}
         </Card>
 
         <Card class="p-5">
-          <p class="text-xs font-black uppercase tracking-[0.22em] text-primary/90">{skin.character.displayName}</p>
+          <p class="text-xs font-black uppercase tracking-[0.22em] text-primary/90">{skin.character?.displayName ?? "Plugin"}</p>
           <div class="mt-2 flex flex-wrap items-end gap-3">
             <h1 class="text-4xl font-black tracking-tight">{skin.title}</h1>
             <span class="rounded-md border border-white/12 bg-background/55 px-2 py-1 text-xs font-black text-muted-foreground">v{skin.version}</span>
-            <span class="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-xs font-black text-primary">{modTypeLabel(skin.modType)}</span>
+            <span class="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-xs font-black text-primary">{skin.contentKind === "plugin" ? "Plugin" : modTypeLabel(skin.modType)}</span>
           </div>
           <div class="mt-4">
             <MarkdownContent value={skin.description} />
@@ -215,6 +232,9 @@
                 <TagChip label={tag} />
               {/each}
             </div>
+          {/if}
+          {#if skin.pluginDependencies.length}
+            <p class="mt-4 rounded-md border border-white/10 bg-background/45 p-3 text-sm font-bold text-muted-foreground">Needs {skin.pluginDependencies.join(", ")}</p>
           {/if}
         </Card>
       </div>
@@ -318,7 +338,7 @@
             <p class="text-2xl font-black">{skin.viewedCount}</p>
           </div>
           <div class="rounded-md bg-background/45 p-3">
-            <p class="text-xs text-muted-foreground">Redirects</p>
+            <p class="text-xs text-muted-foreground">Downloads</p>
             <p class="text-2xl font-black">{skin.redirectionCount}</p>
           </div>
           <div class="rounded-md bg-background/45 p-3">

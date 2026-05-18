@@ -50,10 +50,15 @@ export type Skin = {
   title: string;
   slug: string;
   version: string;
+  contentKind: "mod" | "plugin";
   modType: string;
   description: string;
-  character: Character;
+  character: Character | null;
   submittedByUserId?: string | null;
+  creatorId?: string | null;
+  creatorSlug?: string | null;
+  creatorName?: string | null;
+  creatorUserId?: string | null;
   creditedUserId?: string | null;
   creditedUsername?: string | null;
   creditedSocialLinks?: SocialLink[];
@@ -63,6 +68,7 @@ export type Skin = {
   ownershipType: string;
   status: string;
   tags: string[];
+  pluginDependencies: string[];
   images?: SkinImage[];
   videos?: SkinVideo[];
   files?: SkinFile[];
@@ -72,6 +78,44 @@ export type Skin = {
   voteCount: number;
   isPinned?: boolean;
   createdAt: string;
+};
+
+export type Plugin = {
+  id: string;
+  title: string;
+  slug: string;
+  version: string;
+  docs: string;
+  luaModuleName?: string | null;
+  sourceCodeUrl: string;
+  submittedByUserId?: string | null;
+  creatorId?: string | null;
+  creatorSlug?: string | null;
+  creatorName?: string | null;
+  creatorUserId?: string | null;
+  creditedUserId?: string | null;
+  creditedUsername?: string | null;
+  externalCreatorSlug?: string | null;
+  externalCreatorName?: string | null;
+  externalCreatorUrl?: string | null;
+  ownershipType: string;
+  status: string;
+  tags: string[];
+  dependencies: string[];
+  files?: SkinFile[];
+  viewedCount: number;
+  downloadCount: number;
+  createdAt: string;
+};
+
+export type PluginDocPage = {
+  id: string;
+  slug: string;
+  title: string;
+  body: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type PublicUser = {

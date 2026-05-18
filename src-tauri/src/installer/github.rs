@@ -68,18 +68,18 @@ pub(crate) fn download_asset(url: &str) -> InstallerResult<Vec<u8>> {
         .header("User-Agent", "oppw4-launcher")
         .send()
         .map_err(|source| InstallerError::Network {
-            context: "Could not download patcher asset",
+            context: "Could not download modloader asset",
             source,
         })?
         .error_for_status()
         .map_err(|source| InstallerError::Network {
-            context: "Patcher download failed",
+            context: "Modloader download failed",
             source,
         })?
         .bytes()
         .map(|bytes| bytes.to_vec())
         .map_err(|source| InstallerError::Network {
-            context: "Could not read patcher download",
+            context: "Could not read modloader download",
             source,
         })
 }

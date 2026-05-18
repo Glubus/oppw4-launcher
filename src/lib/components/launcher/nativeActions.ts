@@ -53,21 +53,21 @@ export async function launchGame(ctx: LauncherActionContext) {
 
 export async function installModloader(ctx: LauncherActionContext) {
   await ctx.runBusy(async () => {
-    ctx.logDebug(`installing patcher from repo: ${ctx.getConfig().modloaderRepo}`);
+    ctx.logDebug(`installing modloader from repo: ${ctx.getConfig().modloaderRepo}`);
     await ctx.save();
     ctx.setConfig(await invoke<LauncherConfig>("install_modloader"));
     await ctx.load();
-    ctx.setMessage("Patcher installed.");
-  }, "Could not install patcher");
+    ctx.setMessage("Modloader installed.");
+  }, "Could not install modloader");
 }
 
 export async function checkModloaderIntegrity(ctx: LauncherActionContext) {
   await ctx.runBusy(async () => {
-    ctx.logDebug("checking patcher integrity");
+    ctx.logDebug("checking modloader integrity");
     ctx.setConfig(await invoke<LauncherConfig>("check_modloader_integrity"));
     await ctx.load();
-    ctx.setMessage("Patcher checked.");
-  }, "Could not check patcher");
+    ctx.setMessage("Modloader checked.");
+  }, "Could not check modloader");
 }
 
 export async function toggleInstalledMod(ctx: LauncherActionContext, mod: InstalledMod) {

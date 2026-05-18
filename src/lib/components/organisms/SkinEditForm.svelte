@@ -14,10 +14,12 @@
 
   let title = skin.title;
   let version = skin.version || "1.0.0";
+  let contentKind: "mod" | "plugin" = skin.contentKind || "mod";
   let modType = skin.modType || "complete_skin";
   let description = skin.description || "";
-  let characterId = skin.character.id;
+  let characterId = skin.character?.id ?? "";
   let tags = skin.tags.join(", ");
+  let pluginDependencies = skin.pluginDependencies?.join(", ") ?? "";
   let videos = skin.videos?.length ? skin.videos.map((video) => ({ label: video.label, url: video.url })) : [{ label: "", url: "" }];
   let links = skin.links?.length ? skin.links.map((link) => ({ label: link.label, url: link.url, kind: link.kind })) : [{ label: "", url: "", kind: "external" }];
   let images = skin.images ?? [];
@@ -32,7 +34,8 @@
   $: cleanVideos = videos.map((video) => ({ label: video.label.trim() || "Video preview", url: video.url.trim() })).filter((video) => video.url);
   $: cleanLinks = links.map((link) => ({ label: link.label.trim() || "Source", url: link.url.trim(), kind: link.kind })).filter((link) => link.url);
   $: tagList = tags.split(",").map((tag) => tag.trim()).filter(Boolean);
-  $: selectedCharacter = characters.find((character) => character.id === characterId);
+  $: pluginDependencyList = pluginDependencies.split(",").map((item) => item.trim()).filter(Boolean);
+  $: selectedCharacter = contentKind === "plugin" ? undefined : characters.find((character) => character.id === characterId);
   $: primaryImage = images[0];
   $: newImageFiles = Array.from(newImages ?? []);
   $: newArchiveFiles = Array.from(newFiles ?? []);
@@ -94,10 +97,12 @@
         body: JSON.stringify({
           title: title.trim(),
           version: version.trim() || "1.0.0",
+          contentKind,
           modType,
           description,
-          characterId,
+          characterId: contentKind === "plugin" ? null : characterId,
           tags: tagList,
+          pluginDependencies: pluginDependencyList,
           links: cleanLinks,
           videos: cleanVideos
         })
@@ -158,6 +163,14 @@
           <Label>Title<Input bind:value={title} placeholder="Gear Five recolor" /></Label>
           <Label>Version<Input bind:value={version} placeholder="1.0.0" /></Label>
           <Label>
+            Browser tab
+            <select class="h-10 rounded-md border border-white/12 bg-background/55 px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" bind:value={contentKind}>
+              <option value="mod">Mods</option>
+              <option value="plugin">Plugins</option>
+            </select>
+          </Label>
+          {#if contentKind === "mod"}
+          <Label>
             Mod type
             <select class="h-10 rounded-md border border-white/12 bg-background/55 px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" bind:value={modType}>
               {#each MOD_TYPE_OPTIONS.filter((option) => option.value) as option}
@@ -166,6 +179,7 @@
             </select>
           </Label>
           <Label class="sm:col-span-2">Character<CharacterCombobox {characters} bind:value={characterId} valueKey="id" includeAll={false} /></Label>
+          {/if}
           <Label class="sm:col-span-2">
             Description
             <textarea class="min-h-44 w-full rounded-md border border-white/12 bg-background/55 px-3 py-2 text-sm leading-6 text-foreground shadow-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring" maxlength="4000" bind:value={description}></textarea>
@@ -251,6 +265,9 @@
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
           <Label>Tags<Input bind:value={tags} placeholder="wano, recolor, coat" /></Label>
+          {#if contentKind === "mod"}
+            <Label>Plugin dependencies<Input bind:value={pluginDependencies} placeholder="lua-core, costume-api" /></Label>
+          {/if}
         </div>
       </Card>
 
@@ -367,7 +384,7 @@
             </div>
           {/if}
           <div class="rounded-lg border border-white/10 bg-background/45 p-5">
-            <p class="text-xs font-black uppercase tracking-[0.22em] text-primary/90">{selectedCharacter?.displayName ?? skin.character.displayName}</p>
+            <p class="text-xs font-black uppercase tracking-[0.22em] text-primary/90">{selectedCharacter?.displayName ?? skin.character?.displayName ?? "Plugin"}</p>
             <div class="mt-2 flex flex-wrap items-end gap-3">
               <h3 class="text-3xl font-black tracking-tight">{title || "Untitled mod"}</h3>
               <span class="rounded-md border border-white/12 bg-background/55 px-2 py-1 text-xs font-black text-muted-foreground">v{version || "1.0.0"}</span>

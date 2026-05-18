@@ -49,21 +49,26 @@ fn checked_mod_path(path: &str) -> Result<PathBuf, String> {
 }
 
 fn checked_mod_path_for_config(config: &LauncherConfig, path: &str) -> Result<PathBuf, String> {
-    let mods_dir = canonical_mods_dir(config)?;
+    let content_dirs = canonical_content_dirs(config)?;
     let path = canonical_existing_mod_path(path)?;
-    require_top_level_mod_path(&path, &mods_dir)?;
+    require_top_level_mod_path(&path, &content_dirs)?;
     Ok(path)
 }
 
-fn canonical_mods_dir(config: &LauncherConfig) -> Result<PathBuf, String> {
+fn canonical_content_dirs(config: &LauncherConfig) -> Result<Vec<PathBuf>, String> {
     let game_folder = config
         .game_folder
         .clone()
         .ok_or_else(|| "Set a game folder first.".to_string())?;
-    PathBuf::from(game_folder)
-        .join("mods")
-        .canonicalize()
-        .map_err(|_| "Mods folder does not exist.".to_string())
+    let game_folder = PathBuf::from(game_folder);
+    let dirs = ["mods", "plugins"]
+        .into_iter()
+        .filter_map(|name| game_folder.join(name).canonicalize().ok())
+        .collect::<Vec<_>>();
+    if dirs.is_empty() {
+        return Err("Mods or plugins folder does not exist.".to_string());
+    }
+    Ok(dirs)
 }
 
 fn canonical_existing_mod_path(path: &str) -> Result<PathBuf, String> {
@@ -75,11 +80,14 @@ fn canonical_existing_mod_path(path: &str) -> Result<PathBuf, String> {
         .map_err(|err| format!("Invalid mod path: {err}"))
 }
 
-fn require_top_level_mod_path(path: &Path, mods_dir: &Path) -> Result<(), String> {
-    if path.starts_with(mods_dir) && path.parent() == Some(mods_dir) {
+fn require_top_level_mod_path(path: &Path, content_dirs: &[PathBuf]) -> Result<(), String> {
+    if content_dirs
+        .iter()
+        .any(|dir| path.starts_with(dir) && path.parent() == Some(dir.as_path()))
+    {
         Ok(())
     } else {
-        Err("Mod must be inside the configured mods folder.".to_string())
+        Err("Mod must be inside the configured mods or plugins folder.".to_string())
     }
 }
 
@@ -165,7 +173,7 @@ mod tests {
 
         let err = set_mod_path_enabled(&config, &nested_mod.to_string_lossy(), false).unwrap_err();
 
-        assert_eq!(err, "Mod must be inside the configured mods folder.");
+        assert_eq!(err, "Mod must be inside the configured mods or plugins folder.");
         assert!(nested_mod.exists());
     }
 
@@ -235,7 +243,7 @@ mod tests {
         };
         assert_eq!(
             set_mod_path_enabled(&config, &mod_path.to_string_lossy(), false).unwrap_err(),
-            "Mods folder does not exist."
+            "Mods or plugins folder does not exist."
         );
     }
 
@@ -265,13 +273,14 @@ mod tests {
 
     #[test]
     fn require_top_level_mod_path_rejects_sibling_and_nested_paths() {
-        let mods_dir = Path::new("/game/mods");
+        let content_dirs = vec![PathBuf::from("/game/mods"), PathBuf::from("/game/plugins")];
         let sibling = Path::new("/game/other.zip");
         let nested = Path::new("/game/mods/folder/mod.zip");
 
-        assert!(require_top_level_mod_path(sibling, mods_dir).is_err());
-        assert!(require_top_level_mod_path(nested, mods_dir).is_err());
-        assert!(require_top_level_mod_path(Path::new("/game/mods/mod.zip"), mods_dir).is_ok());
+        assert!(require_top_level_mod_path(sibling, &content_dirs).is_err());
+        assert!(require_top_level_mod_path(nested, &content_dirs).is_err());
+        assert!(require_top_level_mod_path(Path::new("/game/mods/mod.zip"), &content_dirs).is_ok());
+        assert!(require_top_level_mod_path(Path::new("/game/plugins/plugin.zip"), &content_dirs).is_ok());
     }
 
     #[test]
