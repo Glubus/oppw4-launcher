@@ -12,6 +12,8 @@
 #### Changed
 
 - Make the top navigation use the full available width on narrow browser windows.
+- Align Browse and plugin pages with the launcher layout for more consistent cards, headers, and filtering.
+- Split installed Mods and Plugins views so each panel shows the right actions, filters, totals, and empty states.
 
 #### Fixed
 
